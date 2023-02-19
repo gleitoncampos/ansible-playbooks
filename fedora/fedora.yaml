@@ -1,0 +1,68 @@
+---
+- name: Install programs on Fedora
+  hosts: localhost
+  become: yes
+  tasks:
+  - name: Add RPM Fusion and archived repositories
+    dnf_repository:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - RPM Fusion Free
+      - RPM Fusion Nonfree
+      - archived
+    
+  - name: Add green with envy repository
+    dnf_repository:
+      name: green-with-envy
+      description: Green with Envy repository
+      baseurl: https://rpm.newrelic.com/fedora/green-with-envy
+      gpgcheck: yes
+      gpgkey: https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
+      enabled: yes
+
+  - name: Add flathub repository
+    command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+  - name: Enable Fedora Copr for Onedriver
+    community.general.copr:
+      name: jstaf/onedriver
+
+
+  - name: Update the system
+    dnf:
+      name: '*'
+      state: latest
+  
+  - name: Install programs
+    dnf:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - flatpak
+      - snapd
+      - code
+      - green-with-envy
+      - flameshot
+      - yakuake
+      - kde-connect
+      - timeshift
+      - onedriver
+  
+  - name: Install snap programs
+    snap:
+      name:
+        - deezer
+        - morgen
+      state: present
+  
+  - name: Install flatpak programs
+    flatpak:
+      name: "{{ item }}"
+      remote: flathub
+      state: present
+    with_items:
+      - org.meetfranz.Franz
+      - com.notepadqq.Notepadqq
+      - io.github.peazip.PeaZip
+
