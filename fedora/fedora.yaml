@@ -28,7 +28,6 @@
         - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
         - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
         - https://packages.microsoft.com/yumrepos/vscode
-        - http://dl.google.com/linux/chrome/rpm/stable/$basearch
         
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -51,7 +50,7 @@
       - flameshot
       - yakuake
       - onedrive
-      #- https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+      - https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
       - firefox
       - qbittorrent
       - gwe #Gree with Envy - Nvidia Tweaks
