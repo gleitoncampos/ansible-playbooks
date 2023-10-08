@@ -130,7 +130,7 @@
         cd "{{ tmp_folder }}"
 
    - name: Cleaing temp folder
-    shell: |
+     shell: |
         cd "{{ tmp_folder }}"
         rm -rf ./*.*
         
