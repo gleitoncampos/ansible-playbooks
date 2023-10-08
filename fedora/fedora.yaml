@@ -31,7 +31,7 @@
         #- http://dl.google.com/linux/chrome/rpm/stable/$basearch
 
   - name: Add repository into repo.d list
-      ansible.builtin.yum_repository:
+    ansible.builtin.yum_repository:
         name: google-chrome
         description: google-chrome repository
         baseurl: http://dl.google.com/linux/chrome/rpm/stable/x86_64
