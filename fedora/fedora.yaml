@@ -28,7 +28,16 @@
         - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
         - https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
         - https://packages.microsoft.com/yumrepos/vscode
-        - http://dl.google.com/linux/chrome/rpm/stable/$basearch
+        #- http://dl.google.com/linux/chrome/rpm/stable/$basearch
+
+  - name: Add repository into repo.d list
+      ansible.builtin.yum_repository:
+        name: google-chrome
+        description: google-chrome repository
+        baseurl: http://dl.google.com/linux/chrome/rpm/stable/x86_64
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://dl.google.com/linux/linux_signing_key.pub
         
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
