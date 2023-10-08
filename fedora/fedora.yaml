@@ -7,7 +7,7 @@
   tasks:
 
    - name: Create temp download folder
-    command: >
+     command: >
        mkdir -p {{ tmp_folder }}
        
   - name: Add RPM Fusion and archived repositories
