@@ -10,23 +10,14 @@
     command: >
        mkdir -p {{ tmp_folder }}
        
-  - name: Add RPM Fusion and archived repositories
-    dnf_repository:
-      name: "{{ item }}"
-      state: present
-    with_items:
-      - RPM Fusion Free
-      - RPM Fusion Nonfree
-      - archived
-    
-  - name: Add green with envy repository
-    dnf_repository:
-      name: green-with-envy
-      description: Green with Envy repository
-      baseurl: https://rpm.newrelic.com/fedora/green-with-envy
-      gpgcheck: yes
-      gpgkey: https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
-      enabled: yes
+  - name: Enable the RPM Fusion repository
+    dnf:
+       name: "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm"
+       state: present
+  - name: Enable the RPM Fusion Non Free repository
+    dnf:
+       name: "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm"
+       state: present
         
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -36,7 +27,7 @@
       name: '*'
       state: latest
   
-  - name: Install programs
+  - name: Install commom programs
     dnf:
       name: "{{ item }}"
       state: present
@@ -51,6 +42,10 @@
       - flameshot
       - yakuake
       - onedrive
+      - https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+      - firefox
+      - qbittorrent
+      - gwe #Gree with Envy - Nvidia Tweaks
   
   - name: Install snap programs
     snap:
