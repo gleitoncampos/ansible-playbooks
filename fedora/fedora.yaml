@@ -13,7 +13,7 @@
 
   - name: Adding RPM Free repository into repo.d list
     yum_repository:
-        name: RPM Free
+        name: RPM Fusion Free
         description: RPM Free repository
         baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
         enabled: true
@@ -22,7 +22,7 @@
 
   - name: Adding RPM Non Free repository into repo.d list
     yum_repository:
-        name: RPM Non Free
+        name: RPM Fusion Non Free
         description: RPM Non Free repository
         baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
         enabled: true
@@ -112,6 +112,11 @@
       curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
       unzip awscliv2.zip
       sudo ./aws/install
+      
+  - name: Importing AWS SSM Plugin GPG Key
+    rpm_key:
+        state: present
+        key: https://s3.us-east-1.amazonaws.com/amazon-ssm-us-east-1/latest/linux_amd64/amazon-ssm-agent.rpm.sig
        
 
   - name: Install AWS SSM Plugin
