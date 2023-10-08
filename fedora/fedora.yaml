@@ -1,8 +1,15 @@
 ---
 - name: Install programs on Fedora
   hosts: localhost
+  vars:
+    tmp_folder: /tmp/ansible_temp
   become: yes
   tasks:
+
+   - name: Create temp download folder
+    command: >
+       mkdir -p {{ tmp_folder }}
+       
   - name: Add RPM Fusion and archived repositories
     dnf_repository:
       name: "{{ item }}"
@@ -20,14 +27,9 @@
       gpgcheck: yes
       gpgkey: https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
       enabled: yes
-
+        
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-  - name: Enable Fedora Copr for Onedriver
-    community.general.copr:
-      name: jstaf/onedriver
-
 
   - name: Update the system
     dnf:
@@ -40,23 +42,24 @@
       state: present
     with_items:
       - flatpak
+      - vim
       - snapd
       - code
+      - curl
+      - wget
       - green-with-envy
       - flameshot
       - yakuake
-      - kde-connect
-      - timeshift
-      - onedriver
+      - onedrive
   
   - name: Install snap programs
     snap:
-      name:
-        - deezer
-        - morgen
-        - dbeaver-ce
+      name: "{{ item }}"
       state: present
-  
+      with_items:
+        - deezer
+        - dbeaver-ce
+      
   - name: Install flatpak programs
     flatpak:
       name: "{{ item }}"
@@ -66,4 +69,71 @@
       - org.meetfranz.Franz
       - com.notepadqq.Notepadqq
       - io.github.peazip.PeaZip
+
+
+  - name: Install AppImageLaucher
+    shell: |
+      cd "{{ tmp_folder }}"
+      wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
+      rm -f appimagelauncher*.tar.xz
+      rm -f appoimagelauncher-lite*
+      rm -f appimagelauncher*.arm*
+      rm -f appimagelauncher*.deb
+      rm -f appimagelauncher*.i386*
+      rpm -Uvh *rpm 
+
+  - name: Install AWS CLI
+    shell: |
+      cd {{ tmp_folder }}
+      curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      unzip awscliv2.zip
+      sudo ./aws/install
+       
+
+  - name: Install AWS SSM Plugin
+    dnf:
+      name: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm
+      state: present
+       
+  - name: Install OneDriveGui
+    shell: |
+       cd "{{ tmp_folder }}"
+       wget https://api.github.com/repos/bpozdena/OneDriveGUI/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
+       find . -type f -name "*.txt" -exec ail-cli integrate {} \; 
+
+  - name: Install Serverless Framework
+    shell: |
+        curl -o- -L https://slss.io/install | bash
+
+  - name: Install Python 3.9 - Requirements
+    dnf:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - wget 
+      - yum-utils 
+      - make 
+      - gcc 
+      - openssl-devel 
+      - bzip2-devel 
+      - libffi-devel 
+      - zlib-devel 
+  - name: Install Python 3.9 - Install
+    shell: |
+        cd "{{ tmp_folder }}"
+        wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz
+        tar xzf Python-3.9.18.tgz
+        cd Python-3.9.18
+        sudo ./configure --with-system-ffi --with-computed-gotos --enable-loadable-sqlite-extensions
+        sudo make -j
+        sudo make altinstall
+        cd "{{ tmp_folder }}"
+
+   - name: Cleaing temp folder
+    shell: |
+        cd "{{ tmp_folder }}"
+        rm -rf ./*.*
+        
+       
+  
 
