@@ -10,28 +10,27 @@
     command: >
        mkdir -p {{ tmp_folder }}
 
-  - name: Import GPG Keys
-    rpm_key:
-        state: present
-        key: "{{ item }}"
-    with_items:
-        - https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-fedora-2020
-        - https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-2020
-        - https://packages.microsoft.com/keys/microsoft.asc
-        - https://dl.google.com/linux/linux_signing_key.pub
-       
-  - name: Importing Repositories
-    dnf:
-       name: "{{ item }}"
-       state: present
-    with_items:
-        - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
-        - https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
-        #- https://packages.microsoft.com/yumrepos/vscode
-        #- http://dl.google.com/linux/chrome/rpm/stable/$basearch
 
-  - name: Add repository into repo.d list
-    ansible.builtin.yum_repository:
+  - name: Adding RPM Free repository into repo.d list
+    yum_repository:
+        name: RPM Free
+        description: RPM Free repository
+        baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-fedora-2020
+
+  - name: Adding RPM Non Free repository into repo.d list
+    yum_repository:
+        name: RPM Non Free
+        description: RPM Non Free repository
+        baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-2020
+
+  - name: Adding Google Chrome repository into repo.d list
+    yum_repository:
         name: google-chrome
         description: google-chrome repository
         baseurl: http://dl.google.com/linux/chrome/rpm/stable/x86_64
@@ -39,14 +38,23 @@
         gpgcheck: true
         gpgkey: https://dl.google.com/linux/linux_signing_key.pub
 
-  - name: Add repository into repo.d list
-    ansible.builtin.yum_repository:
+  - name: Adding Microsoft VSCode repository into repo.d list
+    yum_repository:
         name: vscode
         description: vscode repository
         baseurl: https://packages.microsoft.com/yumrepos/vscode
         enabled: true
         gpgcheck: true
         gpgkey: https://packages.microsoft.com/keys/microsoft.asc
+
+  - name: Adding Notion Repackged repository into repo.d list
+    yum_repository:
+        name: notion-repackged
+        description: notion repackaged repository
+        baseurl: https://yum.fury.io/notion-repackaged/
+        enabled: true
+        gpgcheck: false
+
         
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -62,25 +70,17 @@
     with_items:
       - flatpak
       - vim
-      - snapd
       - code
       - curl
       - wget
       - flameshot
       - yakuake
       - onedrive
-      #- https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
       - firefox
       - qbittorrent
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
-  
-  #- name: Install snap programs
-  #  snap:
-  #    name: "{{ item }}"
-  #    state: present
-  #  with_items:
-  #      - deezer
+      - notion-app-enhanced
       
   - name: Install flatpak programs
     flatpak:
@@ -88,7 +88,7 @@
       remote: flathub
       state: present
     with_items:
-      - org.meetfranz.Franz
+      - com.meetfranz.Franz
       - com.notepadqq.Notepadqq
       - io.github.peazip.PeaZip
       - io.dbeaver.DBeaverCommunity
