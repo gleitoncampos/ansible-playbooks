@@ -128,9 +128,9 @@
         sudo make -j
         sudo make altinstall
         cd "{{ tmp_folder }}"
-
-   - name: Cleaing temp folder
-     shell: |
+   
+  - name: Cleaing temp folder
+    shell: |
         cd "{{ tmp_folder }}"
         rm -rf ./*.*
         
