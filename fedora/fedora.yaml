@@ -54,6 +54,7 @@
       name:
         - deezer
         - morgen
+        - dbeaver-ce
       state: present
   
   - name: Install flatpak programs
