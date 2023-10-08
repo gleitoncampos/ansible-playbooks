@@ -75,13 +75,12 @@
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
   
-  - name: Install snap programs
-    snap:
-      name: "{{ item }}"
-      state: present
-    with_items:
-        - deezer
-        - dbeaver-ce
+  #- name: Install snap programs
+  #  snap:
+  #    name: "{{ item }}"
+  #    state: present
+  #  with_items:
+  #      - deezer
       
   - name: Install flatpak programs
     flatpak:
@@ -92,6 +91,8 @@
       - org.meetfranz.Franz
       - com.notepadqq.Notepadqq
       - io.github.peazip.PeaZip
+      - io.dbeaver.DBeaverCommunity
+      - dev.aunetx.deezer
 
 
   - name: Install AppImageLaucher
