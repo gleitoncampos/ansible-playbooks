@@ -79,7 +79,7 @@
     snap:
       name: "{{ item }}"
       state: present
-      with_items:
+    with_items:
         - deezer
         - dbeaver-ce
       
