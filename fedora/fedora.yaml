@@ -30,10 +30,10 @@
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-  - name: Update the system
-    dnf:
-      name: '*'
-      state: latest
+ # - name: Update the system
+ #   dnf:
+ #     name: '*'
+ #     state: latest
   
   - name: Install commom programs
     dnf:
