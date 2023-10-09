@@ -64,7 +64,6 @@
 
   - name: Download AppImageLaucher
     shell: |
-        cd "{{ tmp_folder }}"
         wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
         rm -f appimagelauncher*.tar.xz
         rm -f appimagelauncher-lite*
@@ -72,12 +71,19 @@
         rm -f appimagelauncher*.deb
         rm -f appimagelauncher*-i386*
         find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
+    args:
+        chdir: "{{ tmp_folder }}"
 
   - name: Install AppImageLauncher
     dnf:
         name: "{{ tmp_folder }}/appimagelauncher.rpm"
         state: present
         disable_gpg_check: true
+
+  - name: Removinf AppImageLauncher package
+    file:
+        state: absent
+        path: "{{ tmp_folder }}/appimagelauncher.rpm"
       
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -120,12 +126,28 @@
   - name: Install AppImageLauncher
     dnf:
 
-  - name: Install AWS CLI
-    shell: |
-      cd "{{ tmp_folder }}"
-      curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-      unzip awscliv2.zip
-      sudo ./aws/install
+  - name: Download AWS CLI
+    get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: "{{ tmp_folder }}/awscliv2.zip"
+    tags:
+      - download
+
+  - name: Unzip AWS CLI
+    unarchive:
+        src: "{{ tmp_folder }}/awscliv2.zip"
+        dest: "{{ tmp_folder }}"
+        remote_src: yes
+
+  - name: Installing AWS CLI
+    shell: sudo ./aws/install
+    args:
+        chdir: "{{ tmp_folder }}"
+
+  - nane: Delete AWS CLI Package
+    file:
+        state: absent
+        path: "{{ tmp_folder }}/awscliv2.zip"
       
   - name: Importing AWS SSM Plugin GPG Key
     rpm_key:
@@ -141,9 +163,10 @@
        
   - name: Install OneDriveGui
     shell: |
-       cd "{{ tmp_folder }}"
        wget https://api.github.com/repos/bpozdena/OneDriveGUI/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
        find . -type f -name "*.txt" -exec ail-cli integrate {} \; 
+    args:
+        chdir: "{{ tmp_folder }}"
 
   - name: Install Serverless Framework
     shell: |
