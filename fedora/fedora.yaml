@@ -138,6 +138,12 @@
     shell: sudo ./aws/install
     args:
         chdir: "{{ tmp_folder }}"
+    failed_when: >
+        ("No such file or directory" in ret.stdout) or
+        ("Error" in ret.stdout) or
+        (ret.stderr != '') or
+        (ret.rc == 10)
+    
 
   - name: Delete AWS CLI Package
     file:
