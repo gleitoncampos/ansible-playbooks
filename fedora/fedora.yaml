@@ -69,7 +69,7 @@
 
   - name: Install AppImageLauncher
     dnf:
-        name: "{{ tmp_folder }}"/appimagelauncher.rpm
+        name: "{{ tmp_folder }}/appimagelauncher.rpm"
         state: present
       
   - name: Add flathub repository
