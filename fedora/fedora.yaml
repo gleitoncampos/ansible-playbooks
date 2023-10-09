@@ -159,7 +159,7 @@
   - name: Install OneDriveGui
     shell: |
        wget https://api.github.com/repos/bpozdena/OneDriveGUI/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
-       find . -type f -name "*.txt" -exec ail-cli integrate {} \; 
+       find . -type f -name "*.AppImage" -exec ail-cli integrate {} \; 
     args:
         chdir: "{{ tmp_folder }}"
 
