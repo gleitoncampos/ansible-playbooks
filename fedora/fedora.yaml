@@ -144,7 +144,7 @@
     args:
         chdir: "{{ tmp_folder }}"
 
-  - nane: Delete AWS CLI Package
+  - name: Delete AWS CLI Package
     file:
         state: absent
         path: "{{ tmp_folder }}/awscliv2.zip"
