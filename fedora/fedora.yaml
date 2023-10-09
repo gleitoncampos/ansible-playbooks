@@ -6,11 +6,6 @@
   become: yes
   tasks:
 
-  - name: Check if SSM key already exists
-    stat:
-       path: "{{ tmp_folder }}/amazon-ssm-agent.gpg"
-    register: file_status
-
   - name: Create temp download folder
     shell: |
        mkdir -p {{ tmp_folder }}
@@ -75,7 +70,7 @@
         state: present
         disable_gpg_check: true
 
-  - name: Removinf AppImageLauncher package
+  - name: Removing AppImageLauncher package
     file:
         state: absent
         path: "{{ tmp_folder }}/appimagelauncher.rpm"
@@ -84,8 +79,9 @@
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
   - name: Refreshing the repos cache
-    shell: |
-        yum update --refresh git-core
+    dnf:
+       name: "*"
+       state: latest
   
   - name: Install commom programs
     dnf:
