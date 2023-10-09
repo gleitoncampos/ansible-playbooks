@@ -9,7 +9,7 @@
   - name: Check if SSM key already exists
     stat:
        path: "{{ tmp_folder }}/amazon-ssm-agent.gpg"
-       register: file_status
+    register: file_status
 
   - name: Create temp download folder
     shell: |
