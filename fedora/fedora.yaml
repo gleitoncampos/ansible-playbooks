@@ -14,7 +14,7 @@
   - name: Create temp download folder
     shell: |
        mkdir -p {{ tmp_folder }}
-       mv ./amazon-ssm-agent.gpg {{ tmp_folder }}
+       cp ./amazon-ssm-agent.gpg {{ tmp_folder }}
     when: not file_status.stat.exists
 
 
