@@ -137,6 +137,7 @@
     dnf:
       name: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm
       state: present
+      disable_gpg_check: true
        
   - name: Install OneDriveGui
     shell: |
