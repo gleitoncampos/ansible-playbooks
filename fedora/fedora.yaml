@@ -67,10 +67,11 @@
         rm -f appimagelauncher*-i386*
         find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
 
-  #- name: Install AppImageLauncher
-  #  dnf:
-  #      name: "{{ tmp_folder }}/appimagelauncher.rpm"
-  #      state: present
+  - name: Install AppImageLauncher
+    dnf:
+        name: "{{ tmp_folder }}/appimagelauncher.rpm"
+        state: present
+        disable_gpg_check: true
       
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -97,7 +98,6 @@
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
       - notion-app-enhanced
-      - "{{ tmp_folder }}/appimagelauncher.rpm"
       
   - name: Install flatpak programs
     flatpak:
