@@ -20,7 +20,7 @@
 
   - name: Adding RPM Free repository into repo.d list
     yum_repository:
-        name: RPM Fusion Free
+        name: RPM-Fusion-Free
         description: RPM Free repository
         baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
         enabled: true
@@ -29,7 +29,7 @@
 
   - name: Adding RPM Non Free repository into repo.d list
     yum_repository:
-        name: RPM Fusion Non Free
+        name: RPM-Fusion-NonFree
         description: RPM Non Free repository
         baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
         enabled: true
