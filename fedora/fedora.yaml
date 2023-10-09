@@ -64,12 +64,7 @@
 
   - name: Download AppImageLaucher
     shell: |
-        wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
-        rm -f appimagelauncher*.tar.xz
-        rm -f appimagelauncher-lite*
-        rm -f appimagelauncher*.arm*
-        rm -f appimagelauncher*.deb
-        rm -f appimagelauncher*-i386*
+        wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url.*\.rpm/ && !/i386/ {print $(NF-1)}' | xargs wget
         find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
     args:
         chdir: "{{ tmp_folder }}"
