@@ -7,8 +7,9 @@
   tasks:
 
   - name: Create temp download folder
-    command: >
+    shell: |
        mkdir -p {{ tmp_folder }}
+       mv ./amazon-ssm-agent.gpg {{ tmp_folder }}
 
 
   - name: Adding RPM Free repository into repo.d list
@@ -55,6 +56,17 @@
         enabled: true
         gpgcheck: false
 
+   - name: Download AppImageLaucher
+     shell: |
+        cd "{{ tmp_folder }}"
+        wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
+        rm -f appimagelauncher*.tar.xz
+        rm -f appimagelauncher-lite*
+        rm -f appimagelauncher*.arm*
+        rm -f appimagelauncher*.deb
+        rm -f appimagelauncher*-i386*
+        find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
+
         
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -81,6 +93,7 @@
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
       - notion-app-enhanced
+      - {{ tmp_folder }}/appimagelauncher.rpm
       
   - name: Install flatpak programs
     flatpak:
@@ -94,17 +107,8 @@
       - io.dbeaver.DBeaverCommunity
       - dev.aunetx.deezer
 
-
-  - name: Install AppImageLaucher
-    shell: |
-      cd "{{ tmp_folder }}"
-      wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
-      rm -f appimagelauncher*.tar.xz
-      rm -f appoimagelauncher-lite*
-      rm -f appimagelauncher*.arm*
-      rm -f appimagelauncher*.deb
-      rm -f appimagelauncher*.i386*
-      rpm -Uvh *rpm 
+  - name: Install AppImageLauncher
+    dnf:
 
   - name: Install AWS CLI
     shell: |
@@ -116,7 +120,7 @@
   - name: Importing AWS SSM Plugin GPG Key
     rpm_key:
         state: present
-        key: https://s3.us-east-1.amazonaws.com/amazon-ssm-us-east-1/latest/linux_amd64/amazon-ssm-agent.rpm.sig
+        key: {{ tmp_folder }}/amazon-ssm-agent.gpg
        
 
   - name: Install AWS SSM Plugin
