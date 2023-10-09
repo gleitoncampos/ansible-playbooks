@@ -170,30 +170,6 @@
     shell: |
         curl -o- -L https://slss.io/install | bash
 
-  - name: Install Python 3.9 - Requirements
-    dnf:
-      name: "{{ item }}"
-      state: present
-    with_items:
-      - wget 
-      - yum-utils 
-      - make 
-      - gcc 
-      - openssl-devel 
-      - bzip2-devel 
-      - libffi-devel 
-      - zlib-devel 
-  - name: Install Python 3.9 - Install
-    shell: |
-        cd "{{ tmp_folder }}"
-        wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz
-        tar xzf Python-3.9.18.tgz
-        cd Python-3.9.18
-        sudo ./configure --with-system-ffi --with-computed-gotos --enable-loadable-sqlite-extensions
-        sudo make -j
-        sudo make altinstall
-        cd "{{ tmp_folder }}"
-   
   - name: Cleaing temp folder
     shell: |
         cd "{{ tmp_folder }}"
