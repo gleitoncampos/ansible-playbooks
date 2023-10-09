@@ -93,7 +93,7 @@
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
       - notion-app-enhanced
-      - {{ tmp_folder }}/appimagelauncher.rpm
+      - "{{ tmp_folder }}"/appimagelauncher.rpm
       
   - name: Install flatpak programs
     flatpak:
@@ -112,7 +112,7 @@
 
   - name: Install AWS CLI
     shell: |
-      cd {{ tmp_folder }}
+      cd "{{ tmp_folder }}"
       curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
       unzip awscliv2.zip
       sudo ./aws/install
@@ -120,7 +120,7 @@
   - name: Importing AWS SSM Plugin GPG Key
     rpm_key:
         state: present
-        key: {{ tmp_folder }}/amazon-ssm-agent.gpg
+        key: "{{ tmp_folder }}"/amazon-ssm-agent.gpg
        
 
   - name: Install AWS SSM Plugin
