@@ -9,9 +9,6 @@
   - name: Create temp download folder
     shell: |
        mkdir -p {{ tmp_folder }}
-       cp ./amazon-ssm-agent.gpg {{ tmp_folder }}
-    when: not file_status.stat.exists
-
 
   - name: Adding RPM Free repository into repo.d list
     yum_repository:
