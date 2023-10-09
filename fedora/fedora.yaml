@@ -136,6 +136,7 @@
 
   - name: Installing AWS CLI
     shell: sudo ./aws/install
+    register: ret
     args:
         chdir: "{{ tmp_folder }}"
     failed_when: >
