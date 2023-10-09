@@ -139,11 +139,7 @@
     register: ret
     args:
         chdir: "{{ tmp_folder }}"
-    failed_when: >
-        ("No such file or directory" in ret.stdout) or
-        ("Error" in ret.stdout) or
-        (ret.stderr != '') or
-        (ret.rc == 10)
+    failed_when: ret.rc != 0 and ret.rc != 1
     
 
   - name: Delete AWS CLI Package
