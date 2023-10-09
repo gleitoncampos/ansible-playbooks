@@ -47,7 +47,7 @@
         enabled: true
         gpgcheck: true
         gpgkey: https://packages.microsoft.com/keys/microsoft.asc
-
+        
   - name: Adding Notion Repackged repository into repo.d list
     yum_repository:
         name: notion-repackged
@@ -56,8 +56,8 @@
         enabled: true
         gpgcheck: false
 
-   - name: Download AppImageLaucher
-     shell: |
+  - name: Download AppImageLaucher
+    shell: |
         cd "{{ tmp_folder }}"
         wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
         rm -f appimagelauncher*.tar.xz
