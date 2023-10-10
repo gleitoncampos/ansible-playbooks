@@ -3,14 +3,15 @@
   hosts: localhost
   vars:
     tmp_folder: /tmp/ansible_temp
-  become: yes
   tasks:
 
   - name: Create temp download folder
+    become: yes
     shell: |
        mkdir -p {{ tmp_folder }}
 
   - name: Adding RPM Fusion GPG keys
+    become: yes
     rpm_key:
         state: present
         key: "{{ item }}"    
@@ -19,6 +20,7 @@
          - https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-2020
 
   - name: Adding RPM Fusion repositories
+    become: yes
     dnf:
        state: present
        name: "{{ item }}"
@@ -27,6 +29,7 @@
        - http://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
 
   - name: Adding Google Chrome repository into repo.d list
+    become: yes
     yum_repository:
         name: google-chrome
         description: google-chrome repository
@@ -36,6 +39,7 @@
         gpgkey: https://dl.google.com/linux/linux_signing_key.pub
 
   - name: Adding Microsoft VSCode repository into repo.d list
+    become: yes
     yum_repository:
         name: vscode
         description: vscode repository
@@ -54,11 +58,13 @@
 
   
   - name: Updating YUM packages
+    become: yes
     dnf:
        name: "*"
        state: latest
   
   - name: Install commom programs
+    become: yes
     dnf:
       name: "{{ item }}"
       state: present
@@ -78,6 +84,7 @@
       - notion-app-enhanced
 
   - name: Download AppImageLaucher
+    become: yes
     shell: |
         wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url.*\.rpm/ && !/i386/ && !/armhf/ {print $(NF-1)}' | xargs wget
         find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
@@ -85,25 +92,30 @@
         chdir: "{{ tmp_folder }}"
 
   - name: Install AppImageLauncher
+    become: yes
     dnf:
         name: "{{ tmp_folder }}/appimagelauncher.rpm"
         state: present
         disable_gpg_check: true
 
   - name: Removing AppImageLauncher package
+    become: yes
     file:
         state: absent
         path: "{{ tmp_folder }}/appimagelauncher.rpm"
 
   - name: Add flathub repository
+    become: yes
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
   - name: Upgrade all flatpaks
+    become: yes
     command: flatpak update --noninteractive
     register: flatpak_update_output
     changed_when: "'app/' in flatpak_update_output.stdout"
       
   - name: Install flatpak programs
+    become: yes
     flatpak:
       name: "{{ item }}"
       remote: flathub
@@ -116,6 +128,7 @@
       - dev.aunetx.deezer
 
   - name: Download AWS CLI
+    become: yes
     get_url:
         url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
         dest: "{{ tmp_folder }}/awscliv2.zip"
@@ -123,12 +136,14 @@
       - download
 
   - name: Unzip AWS CLI
+    become: yes
     unarchive:
         src: "{{ tmp_folder }}/awscliv2.zip"
         dest: "{{ tmp_folder }}"
         remote_src: yes
 
   - name: Installing AWS CLI
+    become: yes
     shell: sudo ./aws/install
     register: ret
     args:
@@ -137,12 +152,14 @@
     
 
   - name: Delete AWS CLI Package
+    become: yes
     file:
         state: absent
         path: "{{ tmp_folder }}/awscliv2.zip"
        
 
   - name: Install AWS SSM Plugin
+    become: yes
     dnf:
       name: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm
       state: present
@@ -152,14 +169,16 @@
     shell: |
        wget https://api.github.com/repos/bpozdena/OneDriveGUI/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url/ {print $(NF-1)}' | xargs wget
        find . -type f -name "*.AppImage" -exec ail-cli integrate {} \; 
-    args:
-        chdir: "{{ tmp_folder }}"
+   # args:
+        #chdir: "{{ tmp_folder }}"
 
   - name: Install Serverless Framework
+    become: yes
     shell: |
         curl -o- -L https://slss.io/install | bash
 
   - name: Cleaing temp folder
+    become: yes
     shell: |
         cd "{{ tmp_folder }}"
         rm -rf ./*.*
