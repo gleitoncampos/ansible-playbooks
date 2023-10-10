@@ -52,28 +52,8 @@
         enabled: true
         gpgcheck: false
 
-  - name: Download AppImageLaucher
-    shell: |
-        wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url.*\.rpm/ && !/i386/ && !/armhf/ {print $(NF-1)}' | xargs wget
-        find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
-    args:
-        chdir: "{{ tmp_folder }}"
-
-  - name: Install AppImageLauncher
-    dnf:
-        name: "{{ tmp_folder }}/appimagelauncher.rpm"
-        state: present
-        disable_gpg_check: true
-
-  - name: Removing AppImageLauncher package
-    file:
-        state: absent
-        path: "{{ tmp_folder }}/appimagelauncher.rpm"
-      
-  - name: Add flathub repository
-    command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-  - name: Updating the system
+  
+  - name: Updating YUM packages
     dnf:
        name: "*"
        state: latest
@@ -96,6 +76,33 @@
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
       - notion-app-enhanced
+
+   - name: Download AppImageLaucher
+    shell: |
+        wget https://api.github.com/repos/TheAssassin/AppImageLauncher/releases/latest -O - | awk -F \" -v RS="," '/browser_download_url.*\.rpm/ && !/i386/ && !/armhf/ {print $(NF-1)}' | xargs wget
+        find . -name "*.rpm" -exec mv {} ./appimagelauncher.rpm \;
+    args:
+        chdir: "{{ tmp_folder }}"
+
+  - name: Install AppImageLauncher
+    dnf:
+        name: "{{ tmp_folder }}/appimagelauncher.rpm"
+        state: present
+        disable_gpg_check: true
+
+  - name: Removing AppImageLauncher package
+    file:
+        state: absent
+        path: "{{ tmp_folder }}/appimagelauncher.rpm"
+
+   - name: Add flathub repository
+    command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+  - name: Updating Flatpak packages
+    flatpak:
+        name: "*"
+        remote: flathub
+        state: latest
       
   - name: Install flatpak programs
     flatpak:
@@ -108,9 +115,6 @@
       - io.github.peazip.PeaZip
       - io.dbeaver.DBeaverCommunity
       - dev.aunetx.deezer
-
-  - name: Install AppImageLauncher
-    dnf:
 
   - name: Download AWS CLI
     get_url:
