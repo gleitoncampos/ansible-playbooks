@@ -140,11 +140,6 @@
     file:
         state: absent
         path: "{{ tmp_folder }}/awscliv2.zip"
-      
-  - name: Importing AWS SSM Plugin GPG Key
-    rpm_key:
-        state: present
-        key: "{{ tmp_folder }}/amazon-ssm-agent.gpg"
        
 
   - name: Install AWS SSM Plugin
