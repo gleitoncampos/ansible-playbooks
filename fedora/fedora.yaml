@@ -10,23 +10,21 @@
     shell: |
        mkdir -p {{ tmp_folder }}
 
-  - name: Adding RPM Free repository into repo.d list
-    yum_repository:
-        name: RPM-Fusion-Free
-        description: RPM Free repository
-        baseurl: http://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
-        enabled: true
-        gpgcheck: true
-        gpgkey: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-fedora-2020
+  - name: Adding RPM Fusion GPG keys
+    rpm_key:
+        state: present
+        key: "{{ item }}"
+        with_items:
+            - https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-fedora-2020
+            - https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-2020
 
-  - name: Adding RPM Non Free repository into repo.d list
-    yum_repository:
-        name: RPM-Fusion-NonFree
-        description: RPM Non Free repository
-        baseurl: http://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
-        enabled: true
-        gpgcheck: true
-        gpgkey: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-2020
+  - name: Adding RPM Fusion repositories
+    dnf:
+       state: present
+       name: "{{ item }}"
+       with_items:
+           - http://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
+           - http://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
 
   - name: Adding Google Chrome repository into repo.d list
     yum_repository:
