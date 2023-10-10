@@ -14,7 +14,7 @@
     yum_repository:
         name: RPM-Fusion-Free
         description: RPM Free repository
-        baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
+        baseurl: http://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm
         enabled: true
         gpgcheck: true
         gpgkey: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-free-fedora-2020
@@ -23,7 +23,7 @@
     yum_repository:
         name: RPM-Fusion-NonFree
         description: RPM Non Free repository
-        baseurl: https://mirrors.rpmfusion.org/free/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
+        baseurl:http://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm
         enabled: true
         gpgcheck: true
         gpgkey: https://rpmfusion.org/keys?action=AttachFile&do=get&target=RPM-GPG-KEY-rpmfusion-nonfree-fedora-2020
@@ -75,7 +75,7 @@
   - name: Add flathub repository
     command: flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-  - name: Refreshing the repos cache
+  - name: Updating the system
     dnf:
        name: "*"
        state: latest
