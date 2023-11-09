@@ -49,6 +49,7 @@
         gpgkey: https://packages.microsoft.com/keys/microsoft.asc
         
   - name: Adding Notion Repackged repository into repo.d list
+    become: yes
     yum_repository:
         name: notion-repackged
         description: notion repackaged repository
