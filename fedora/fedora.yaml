@@ -187,6 +187,11 @@
     shell: |
         curl -o- -L https://slss.io/install | bash
 
+  - name: Copying Peazip Nautilus Context Menu file
+    shell: |
+        cp ./peazip-flatpak.destop ~/.local/share/kio/servicemenus
+        cp ./peazip-flatpak.destop ~/.local/share/kio/servicemenu-download
+
   - name: Cleaing temp folder
     become: yes
     shell: |
