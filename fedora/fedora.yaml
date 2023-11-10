@@ -136,7 +136,6 @@
       - io.dbeaver.DBeaverCommunity
       - dev.aunetx.deezer
       - com.github.debauchee.barrier
-      - 
 
   - name: Download AWS CLI
     become: yes
