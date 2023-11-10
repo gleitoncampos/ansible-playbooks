@@ -56,6 +56,13 @@
         baseurl: https://yum.fury.io/notion-repackaged/
         enabled: true
         gpgcheck: false
+        
+  - name: Enable project Test of the user schlupov
+    become: yes
+    community.general.copr:
+        host: copr.fedorainfracloud.org
+        state: enabled
+        name: cboxdoerfer/fsearch
 
   
   - name: Updating YUM packages
@@ -83,6 +90,7 @@
       - gwe #Gree with Envy - Nvidia Tweaks
       - google-chrome-stable
       - notion-app-enhanced
+      - fsearch
 
   - name: Download AppImageLaucher
     become: yes
@@ -128,6 +136,7 @@
       - io.dbeaver.DBeaverCommunity
       - dev.aunetx.deezer
       - com.github.debauchee.barrier
+      - 
 
   - name: Download AWS CLI
     become: yes
