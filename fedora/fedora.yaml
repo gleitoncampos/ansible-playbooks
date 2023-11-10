@@ -57,7 +57,7 @@
         enabled: true
         gpgcheck: false
         
-  - name: Enable project Test of the user schlupov
+  - name: Enable FSEARCH COPR
     become: yes
     community.general.copr:
         host: copr.fedorainfracloud.org
