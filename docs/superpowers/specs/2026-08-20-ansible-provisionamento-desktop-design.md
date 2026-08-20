@@ -25,7 +25,7 @@ Dentro:
 - Repositórios de terceiros, pacotes nativos, flatpaks e binários instalados
   fora de gerenciador de pacotes.
 - Configuração de sistema: grupos do usuário, serviços habilitados.
-- Dotfiles essenciais: shell, git, vim, cliente SSH, GTK.
+- Dotfiles essenciais: shell, git e cliente SSH.
 - Automações de usuário do Gather: cinco units systemd e os scripts que elas
   executam.
 
@@ -169,9 +169,13 @@ apenas se houver regra personalizada.
 
 ### Dotfiles
 
-Role `dotfiles`. Versionados: `.bashrc`, `.bash_profile`, `.gitconfig`,
-`.vimrc`, `.ssh/config`, `.gtkrc-2.0`. O `.gitconfig` versionado não carrega
-o `credential.helper` que embute token.
+Role `dotfiles`. Versionados: `.bashrc` (37 linhas), `.bash_profile` (12),
+`.gitconfig` (9) e `.ssh/config`. Uma varredura por `token`, `secret`, `key`
+e `password` nos quatro não encontrou nada — vão para o repositório como
+estão, sem edição.
+
+`.vimrc` e `.gtkrc-2.0` foram listados por engano na primeira versão desta
+spec: o primeiro não existe na máquina, o segundo tem zero bytes.
 
 ### Gather
 
