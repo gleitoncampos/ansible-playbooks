@@ -251,7 +251,7 @@ token em texto plano no home.
 | Fedora | Ubuntu |
 |---|---|
 | RPM Fusion (codecs) | `ubuntu-restricted-extras` |
-| `akmod-nvidia`, `xorg-x11-drv-nvidia-cuda` | `ubuntu-drivers`, PPA `graphics-drivers` |
+| `akmod-nvidia`, `xorg-x11-drv-nvidia-cuda` | `ubuntu-drivers-common`, depois `ubuntu-drivers install` |
 | Terra (`discord`) | `.deb` oficial do Discord |
 | COPR `phracek/PyCharm` | snap ou tarball oficial |
 | COPR `atim/websocat` | binário do release no GitHub |
