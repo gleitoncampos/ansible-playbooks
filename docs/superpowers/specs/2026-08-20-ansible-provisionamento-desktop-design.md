@@ -100,9 +100,17 @@ segundo pertence ao PeaZip, também ausente.
 Roles `repos`, `packages`, `flatpak`, `binaries`.
 
 Repositórios de terceiros: RPM Fusion free e nonfree, Docker CE, Google
-Chrome, Google Chrome Canary, Visual Studio Code, gh-cli, HashiCorp, MongoDB
-8.2, Terra, AnyDesk, Antigravity, Microsoft prod, Cisco openh264, e os COPR
-`atim/websocat` e `phracek/PyCharm`.
+Chrome, Visual Studio Code, gh-cli, HashiCorp, MongoDB 8.2, Terra, AnyDesk,
+Antigravity, Microsoft prod e Cisco openh264.
+
+Três repositórios habilitados na máquina não entram: `google-chrome-canary`,
+COPR `phracek/PyCharm` e COPR `atim/websocat`. Nenhum deles tem pacote
+instalado — são resquício de teste. Provisionar repositório para pacote que
+não se usa deixa origem órfã no `dnf list` sem contrapartida.
+
+O repositório `rpmfusion-nonfree-nvidia-driver` não fica aqui: acompanha os
+pacotes nvidia na role `hardware`, para que uma execução sem a tag não
+adicione repositório sem uso.
 
 Pacotes nativos: docker-ce com cli, buildx, compose e model plugin; code;
 google-chrome-stable; chromium; firefox; gh; terraform; azure-cli; anydesk;
@@ -132,7 +140,16 @@ GPG antiga:
     disable_gpg_check: true
 ```
 
-No Ubuntu, `get_url` do `.deb` em `ubuntu_64bit/` seguido de `apt: deb=`.
+No Ubuntu, o módulo `apt` aceita a URL diretamente em `deb:` e faz o
+download sozinho, sem `get_url` intermediário:
+
+```yaml
+- name: Install session-manager-plugin
+  become: true
+  apt:
+    deb: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb
+```
+
 Ambos são idempotentes: os módulos resolvem a versão do pacote baixado e não
 reinstalam quando ela já está presente.
 
@@ -242,14 +259,39 @@ token em texto plano no home.
 
 ## Hardware
 
-Role `hardware`, sempre por tag, nunca no fluxo padrão: `akmod-nvidia` e
-`xorg-x11-drv-nvidia-cuda`, `virtualbox-guest-additions`, `solaar` para
-periférico Logitech, `camset`, `minicom`, `openscad`. Isso mantém o playbook
+Role `hardware`, sempre por tag, nunca no fluxo padrão: o repositório
+`rpmfusion-nonfree-nvidia-driver` com `akmod-nvidia` e
+`xorg-x11-drv-nvidia-cuda`; `virtualbox-guest-additions`; `solaar`, para
+periférico Logitech; `minicom`, para console serial. Isso mantém o playbook
 base executável em qualquer máquina.
+
+Dois itens saíram desta lista depois de verificação na máquina. `openscad`
+não está instalado — o pacote presente é `opensc`, middleware de smartcard,
+que é biblioteca de sistema e não app de hardware. `camset` não é pacote RPM:
+é um binário Python em `~/.local/bin`, portanto cai na exclusão de
+ferramentas Python já declarada em Escopo.
+
+## Dependências
+
+`ansible-core` sozinho não basta. As roles usam `community.general.copr` e
+`community.general.flatpak`, que vivem numa collection separada. Sem
+declará-la, o playbook falha na primeira tarefa de repositório numa máquina
+recém-formatada.
+
+`collections/requirements.yml`:
+
+```yaml
+collections:
+  - name: community.general
+```
+
+Instalada com `ansible-galaxy collection install -r collections/requirements.yml`,
+e o `ansible.cfg` aponta `collections_path` para o diretório do projeto.
 
 ## Execução
 
 ```bash
+ansible-galaxy collection install -r collections/requirements.yml
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass
 ansible-playbook -i inventory/hosts.ini fedora.yml --tags nvidia
 ```
@@ -262,9 +304,23 @@ Por fase, nesta ordem:
 2. `ansible-lint`
 3. Execução com `--check`
 4. Execução real nesta máquina
-5. Segunda execução real, que deve reportar `changed=0`
+5. Segunda execução real
 
-O passo 5 é o teste de idempotência e é o critério de aceite de cada fase.
+O passo 5 é o teste de idempotência e é o critério de aceite de cada fase,
+com uma ressalva: `changed=0` absoluto não é alcançável. Três tarefas
+reportam mudança sempre que existe atualização disponível a montante, o que
+independe do playbook:
+
+| Tarefa | Motivo |
+|---|---|
+| `dnf: name="*" state=latest` | há pacote novo no repositório |
+| `flatpak update` | há build novo no flathub |
+| instalador shell do AWS CLI | não expõe estado consultável |
+
+Essas três recebem `changed_when` explícito que reflita mudança real, e o
+critério de aceite recai sobre as tarefas declarativas: instalação de
+pacotes, repositórios, flatpaks, dotfiles e units devem sair todas `ok` na
+segunda execução.
 
 Para o Gather, acrescenta-se: `systemctl --user status` nas cinco units, e
 uma execução manual de `gather_ci_status.mjs` com `--dry-run` confirmando que
