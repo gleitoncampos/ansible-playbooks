@@ -10,9 +10,10 @@ comuns. A diferença entre gerenciadores de pacote vive em `vars/<distro>.yml`
 e em `roles/<role>/tasks/<distro>.yml`, incluído conforme `ansible_os_family`.
 Nenhum segredo no repositório. Pacotes de hardware isolados por tag.
 
-**Tech Stack:** ansible-core 2.19 (`ansible-core` do Fedora 43),
-`community.general` para os módulos `copr` e `flatpak`, `ansible-lint`,
-`node --test` para a mudança no cliente do Gather.
+**Tech Stack:** ansible-core 2.18.18 (`ansible-core` do Fedora 43),
+`community.general` para o módulo `flatpak`, `ansible-lint`, `node --test`
+para a mudança no cliente do Gather, `podman` para validar cada role em
+container limpo.
 
 **Spec:** `docs/superpowers/specs/2026-08-20-ansible-provisionamento-desktop-design.md`
 
@@ -32,6 +33,18 @@ Nenhum segredo no repositório. Pacotes de hardware isolados por tag.
   `ok`. As três tarefas de atualização a montante (`dnf` update all,
   `flatpak update`, instalador do AWS CLI) recebem `changed_when` explícito.
 - Commits ao fim de cada task.
+- Módulo de pacote no Fedora é `ansible.builtin.dnf5`, nunca
+  `ansible.builtin.dnf`. O Fedora 43 entrega dnf5; o módulo `dnf` exige os
+  bindings dnf4 do `python3-dnf`, que nesta máquina está presente apenas como
+  dependência transitiva e pode não existir numa instalação limpa — nesse caso
+  toda tarefa de pacote falha com "Could not import the dnf python module".
+- **Toda role tem um step de validação em container limpo, antes da execução
+  na máquina real.** Isto não é zelo: a primeira versão deste plano carregava
+  quatro URLs mortas e dois pacotes sem repositório, e nenhum dos seus testes
+  de aceite os detectou, porque todos rodavam contra a máquina de origem, que
+  já estava no estado desejado. `rpm -q` de pacote instalado e `dnf repolist`
+  de repositório existente passam de graça e não provam nada sobre uma
+  instalação limpa.
 
 ---
 
@@ -39,6 +52,7 @@ Nenhum segredo no repositório. Pacotes de hardware isolados por tag.
 
 **Files:**
 - Create: `ansible.cfg`
+- Create: `.ansible-lint`
 - Create: `inventory/hosts.ini`
 - Create: `collections/requirements.yml`
 - Create: `.gitignore`
@@ -82,14 +96,26 @@ nocows = True
 become_method = sudo
 ```
 
-- [ ] **Step 4: Criar `inventory/hosts.ini`**
+- [ ] **Step 4: Criar `.ansible-lint`**
+
+`package-latest` sinaliza `state: latest`, que é intencional na tarefa de
+atualização geral do sistema. Sem esta exclusão o `ansible-lint` reprova o
+código deste próprio plano, e ele é usado como portão em nove tasks.
+
+```yaml
+---
+skip_list:
+  - package-latest
+```
+
+- [ ] **Step 5: Criar `inventory/hosts.ini`**
 
 ```ini
 [workstation]
 localhost ansible_connection=local
 ```
 
-- [ ] **Step 5: Criar `collections/requirements.yml`**
+- [ ] **Step 6: Criar `collections/requirements.yml`**
 
 ```yaml
 ---
@@ -97,7 +123,7 @@ collections:
   - name: community.general
 ```
 
-- [ ] **Step 6: Criar `.gitignore`**
+- [ ] **Step 7: Criar `.gitignore`**
 
 O primeiro bloco impede que a collection baixada entre no repositório; o
 segundo é rede de segurança contra credencial commitada por engano.
@@ -115,7 +141,7 @@ id_ed25519*
 secrets.yml
 ```
 
-- [ ] **Step 7: Criar `group_vars/all.yml`**
+- [ ] **Step 8: Criar `group_vars/all.yml`**
 
 ```yaml
 ---
@@ -128,7 +154,7 @@ target_user: "{{ ansible_user_id }}"
 target_home: "{{ ansible_env.HOME }}"
 ```
 
-- [ ] **Step 8: Criar `vars/fedora.yml` com o cabeçalho**
+- [ ] **Step 9: Criar `vars/fedora.yml` com o cabeçalho**
 
 Só o esqueleto; as listas entram nas tasks 2 e 3.
 
@@ -138,7 +164,7 @@ Só o esqueleto; as listas entram nas tasks 2 e 3.
 # Listas preenchidas nas tasks seguintes.
 ```
 
-- [ ] **Step 9: Criar `fedora.yml`**
+- [ ] **Step 10: Criar `fedora.yml`**
 
 ```yaml
 ---
@@ -150,13 +176,13 @@ Só o esqueleto; as listas entram nas tasks 2 e 3.
   roles: []
 ```
 
-- [ ] **Step 10: Remover os arquivos obsoletos**
+- [ ] **Step 11: Remover os arquivos obsoletos**
 
 ```bash
 git rm fedora/fedora.yaml fedora/amazon-ssm-agent.gpg fedora/peazip-flatpak.desktop.download
 ```
 
-- [ ] **Step 11: Instalar a collection e rodar o syntax-check**
+- [ ] **Step 12: Instalar a collection e rodar o syntax-check**
 
 ```bash
 ansible-galaxy collection install -r collections/requirements.yml
@@ -165,7 +191,7 @@ ansible-playbook -i inventory/hosts.ini fedora.yml --syntax-check
 
 Esperado: `playbook: fedora.yml`, sem erro.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
 git add -A
@@ -175,7 +201,10 @@ Substitui o playbook único por uma estrutura de roles com inventário
 local, collections declaradas e gitignore que barra credencial.
 
 Remove fedora/fedora.yaml, que descrevia uma máquina que não existe mais,
-a chave GPG expirada do SSM Agent e o arquivo do PeaZip, desinstalado."
+a chave GPG expirada do SSM Agent e o arquivo do PeaZip, desinstalado.
+
+.ansible-lint exclui package-latest: state latest é intencional na
+atualização geral e sem a exclusão o lint reprova o próprio plano."
 ```
 
 ---
@@ -197,18 +226,32 @@ a chave GPG expirada do SSM Agent e o arquivo do PeaZip, desinstalado."
 
 - [ ] **Step 1: Escrever o teste que falha**
 
-O teste é a execução real seguida de verificação do estado do sistema:
+Rodar `dnf repolist` nesta máquina não testa nada: os repositórios já existem
+aqui e o comando passa mesmo com a role vazia. O teste desta role é a
+resolubilidade de cada URL numa máquina que não tem nenhuma delas:
 
 ```bash
-ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags repos
-dnf repolist --enabled | grep -E 'docker-ce-stable|gh-cli|hashicorp'
+for u in \
+  "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-43.noarch.rpm" \
+  "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-43.noarch.rpm" \
+  "https://dl.google.com/linux/linux_signing_key.pub" \
+  "https://packages.microsoft.com/keys/microsoft.asc" \
+  "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x23F3D4EA75716059" \
+  "https://download.docker.com/linux/fedora/gpg" \
+  "https://rpm.releases.hashicorp.com/gpg" \
+  "https://www.mongodb.org/static/pgp/server-8.0.asc" \
+  "https://keys.anydesk.com/repos/RPM-GPG-KEY" \
+  "https://packages.microsoft.com/config/fedora/43/packages-microsoft-prod.rpm" \
+  "https://repos.fyralabs.com/terra43" ; do
+  printf '%-70s %s\n' "${u:0:70}" "$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 20 "$u")"
+done
 ```
 
-- [ ] **Step 2: Rodar e confirmar a falha**
+- [ ] **Step 2: Rodar e exigir 200 em todas**
 
-Esperado: o playbook não executa nada, porque `roles:` está vazio. O `grep`
-passa por acidente, já que os repositórios existem nesta máquina — por isso o
-teste real de aceite desta role é `--check` em container limpo, no Step 8.
+Qualquer linha com `404` ou `000` para a task aqui. Foi assim que quatro URLs
+mortas entraram na primeira versão deste plano sem que nenhum teste as
+pegasse.
 
 - [ ] **Step 3: Preencher `vars/fedora.yml` com os repositórios**
 
@@ -218,51 +261,76 @@ teste real de aceite desta role é `--check` em container limpo, no Step 8.
 rpm_url_repositories:
   - "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_distribution_major_version }}.noarch.rpm"
   - "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_major_version }}.noarch.rpm"
-  - "https://repos.fyralabs.com/terra{{ ansible_distribution_major_version }}/terra-release.rpm"
 
-# Repositórios definidos por arquivo .repo.
+# Repositórios definidos por arquivo .repo. O campo `file` é obrigatório: o
+# módulo grava `<name>.repo` por padrão, e três desses ids já vivem em
+# arquivos de nome diferente nesta máquina — `docker-ce-stable` em
+# docker-ce.repo, `code` em vscode.repo, `anydesk` em AnyDesk-Fedora.repo.
+# Sem `file`, cada um passa a existir em dois arquivos com o mesmo id, e o
+# dnf5 escolhe silenciosamente o primeiro em ordem alfabética.
 dnf_repositories:
   - name: google-chrome
+    file: google-chrome
     description: google-chrome
     baseurl: https://dl.google.com/linux/chrome/rpm/stable/x86_64
     gpgcheck: true
     gpgkey: https://dl.google.com/linux/linux_signing_key.pub
 
   - name: code
+    file: vscode
     description: Visual Studio Code
     baseurl: https://packages.microsoft.com/yumrepos/vscode
     gpgcheck: true
     gpgkey: https://packages.microsoft.com/keys/microsoft.asc
 
+  # A chave do gh não sai de cli.github.com: aquele caminho responde 404.
+  # É a mesma chave que a máquina de origem usa, buscada no keyserver.
   - name: gh-cli
+    file: gh-cli
     description: packages for the GitHub CLI
     baseurl: https://cli.github.com/packages/rpm
     gpgcheck: true
-    gpgkey: https://cli.github.com/packages/rpm/gpg.key
+    gpgkey: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x23F3D4EA75716059"
 
   - name: docker-ce-stable
+    file: docker-ce
     description: Docker CE Stable - x86_64
     baseurl: "https://download.docker.com/linux/fedora/{{ ansible_distribution_major_version }}/x86_64/stable"
     gpgcheck: true
     gpgkey: https://download.docker.com/linux/fedora/gpg
 
   - name: hashicorp
+    file: hashicorp
     description: Hashicorp Stable - x86_64
     baseurl: "https://rpm.releases.hashicorp.com/fedora/{{ ansible_distribution_major_version }}/x86_64/stable"
     gpgcheck: true
     gpgkey: https://rpm.releases.hashicorp.com/gpg
 
+  # A MongoDB não publica chave 8.2: server-8.2.asc responde 404 e a série 8.2
+  # é assinada pela chave 8.0. O baseurl segue o da máquina de origem
+  # (redhat/8); o caminho redhat/9 também responde, mas nunca foi validado aqui.
   - name: mongodb-org-8.2
+    file: mongodb-org-8.2
     description: MongoDB Repository
-    baseurl: https://repo.mongodb.org/yum/redhat/9/mongodb-org/8.2/x86_64/
+    baseurl: https://repo.mongodb.org/yum/redhat/8/mongodb-org/8.2/x86_64/
     gpgcheck: true
-    gpgkey: https://pgp.mongodb.com/server-8.2.asc
+    gpgkey: https://www.mongodb.org/static/pgp/server-8.0.asc
 
   - name: anydesk
+    file: AnyDesk-Fedora
     description: AnyDesk Fedora - stable
     baseurl: http://rpm.anydesk.com/fedora/x86_64/
     gpgcheck: true
     gpgkey: https://keys.anydesk.com/repos/RPM-GPG-KEY
+
+  # Repositório do Google para o Antigravity. Não publica chave: os pacotes
+  # vêm sem assinatura, então gpgcheck fica falso por imposição da origem.
+  - name: antigravity-rpm
+    file: antigravity
+    description: Antigravity RPM Repository
+    baseurl: https://us-central1-yum.pkg.dev/projects/antigravity-auto-updater-dev/antigravity-rpm
+    gpgcheck: false
+    gpgkey: ""
 ```
 
 - [ ] **Step 4: Criar `roles/repos/tasks/main.yml`**
@@ -282,7 +350,7 @@ chaves ainda não importadas no momento em que são instalados.
 ---
 - name: Install release packages that define repositories
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: "{{ rpm_url_repositories }}"
     state: present
     disable_gpg_check: true
@@ -291,21 +359,34 @@ chaves ainda não importadas no momento em que são instalados.
   become: true
   ansible.builtin.yum_repository:
     name: "{{ item.name }}"
+    file: "{{ item.file }}"
     description: "{{ item.description }}"
     baseurl: "{{ item.baseurl }}"
     enabled: true
     gpgcheck: "{{ item.gpgcheck }}"
-    gpgkey: "{{ item.gpgkey | default(omit) }}"
+    gpgkey: "{{ item.gpgkey if item.gpgkey | default('') else omit }}"
   loop: "{{ dnf_repositories }}"
   loop_control:
     label: "{{ item.name }}"
 
 - name: Add Microsoft production repository
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: "https://packages.microsoft.com/config/fedora/{{ ansible_distribution_major_version }}/packages-microsoft-prod.rpm"
     state: present
     disable_gpg_check: true
+
+# O Terra não publica terra-release.rpm num caminho estável: a URL usada na
+# primeira versão deste plano responde 404. O método oficial monta o
+# repositório em memória e instala o release a partir dele.
+- name: Add Terra repository
+  become: true
+  ansible.builtin.command:
+    cmd: >-
+      dnf install -y --nogpgcheck
+      --repofrompath 'terra,https://repos.fyralabs.com/terra{{ ansible_distribution_major_version }}'
+      terra-release
+    creates: /etc/yum.repos.d/terra.repo
 ```
 
 - [ ] **Step 6: Ligar a role em `fedora.yml`**
@@ -324,25 +405,52 @@ ansible-lint fedora.yml
 
 Esperado: ambos sem erro.
 
-- [ ] **Step 8: Execução e idempotência**
+- [ ] **Step 8: Validar em container limpo**
+
+Este é o teste de aceite da role. O container não tem nenhum dos
+repositórios, então o resultado é real:
 
 ```bash
+podman run --rm -v "$PWD:/repo:ro,Z" -w /repo fedora:43 bash -c '
+  dnf install -y ansible-core >/dev/null 2>&1
+  ansible-playbook -i inventory/hosts.ini fedora.yml --tags repos --connection=local
+  dnf repolist --enabled
+'
+```
+
+Esperado: o playbook termina com `failed=0`, e o `repolist` mostra
+`docker-ce-stable`, `gh-cli`, `hashicorp`, `mongodb-org-8.2`, `code`,
+`google-chrome`, `anydesk`, `antigravity-rpm`, `terra` e as quatro da RPM
+Fusion.
+
+- [ ] **Step 9: Execução e idempotência na máquina real**
+
+```bash
+ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags repos --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags repos
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags repos
 ```
 
-Esperado na segunda execução: `changed=0`. Se `yum_repository` reportar
-`changed` sempre, é sinal de que algum campo do `.repo` existente difere do
-declarado — comparar com `/etc/yum.repos.d/<name>.repo` e alinhar.
+Esperado na terceira: `changed=0`. Se `yum_repository` reportar `changed`
+sempre, algum campo do `.repo` existente difere do declarado — comparar com
+`/etc/yum.repos.d/<file>.repo` e alinhar.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add -A
 git commit -m "feat: role repos com os repositórios de terceiros do Fedora
 
 Repositórios declarados em vars/fedora.yml, separados entre pacotes de
-release e arquivos .repo.
+release e arquivos .repo. Cada entrada traz 'file' explícito: três desses
+ids já vivem em arquivos de nome diferente, e sem isso passariam a existir
+em duplicata, com o dnf5 escolhendo um deles por ordem alfabética.
+
+O Terra sai da lista de .rpm: aquela URL responde 404. Usa o método
+oficial, que monta o repositório em memória para instalar o release.
+
+A chave do gh vem do keyserver, não de cli.github.com, que dá 404. A do
+MongoDB é a série 8.0, que assina também a 8.2 — não existe chave 8.2.
 
 Fora: google-chrome-canary e os COPR de PyCharm e websocat, habilitados na
 máquina mas sem pacote instalado. O repositório nvidia da RPM Fusion fica
@@ -365,14 +473,28 @@ na role hardware, junto dos pacotes que o usam."
 
 - [ ] **Step 1: Escrever o teste que falha**
 
+`rpm -q` nesta máquina passa para todos, porque todos já estão instalados —
+não prova nada. O teste é a resolubilidade da lista inteira num container que
+não tem nenhum deles. Ele detecta o pacote que não existe em repositório
+algum, que foi como `gemini-desktop` entrou na primeira versão desta lista:
+
 ```bash
-rpm -q code gh terraform docker-ce discord antigravity mongodb-mongosh
+podman run --rm -v "$PWD:/repo:ro,Z" -w /repo fedora:43 bash -c '
+  dnf install -y ansible-core >/dev/null 2>&1
+  ansible-playbook -i inventory/hosts.ini fedora.yml --tags repos --connection=local >/dev/null
+  dnf install --assumeno $(python3 -c "
+import yaml,sys
+print(\" \".join(yaml.safe_load(open(\"vars/fedora.yml\"))[\"system_packages\"]))")
+'
 ```
 
-- [ ] **Step 2: Rodar e confirmar o estado**
+- [ ] **Step 2: Rodar e exigir que a transação resolva**
 
-Nesta máquina todos já estão instalados, então o comando passa. O teste que
-importa é a idempotência do Step 6 e o `--check` num container Fedora limpo.
+Esperado: o dnf monta a transação e para no "Is this ok [y/N]" — o
+`--assumeno` recusa e nada é instalado. Qualquer `No match for argument` ou
+`Unable to find a match` aborta a task: aquele pacote não existe em nenhum
+repositório declarado, e como a role instala a lista inteira numa tarefa só,
+ele derrubaria **todos** os pacotes junto.
 
 - [ ] **Step 3: Acrescentar a lista em `vars/fedora.yml`**
 
@@ -409,7 +531,6 @@ system_packages:
   - discord
   - anydesk
   - antigravity
-  - gemini-desktop
   - libreoffice-writer
   - libreoffice-calc
   - libreoffice-impress
@@ -451,28 +572,32 @@ system_packages:
 
 - [ ] **Step 5: Criar `roles/packages/tasks/fedora.yml`**
 
-O `changed_when` na primeira tarefa existe porque `state: latest` sobre `*`
-reporta mudança sempre que há atualização a montante, o que não é mudança
-causada pelo playbook e quebraria o critério de idempotência.
+Módulo `dnf5`, não `dnf`: ver Global Constraints.
 
 ```yaml
 ---
 - name: Update all system packages
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: "*"
     state: latest
-  register: dnf_upgrade
   changed_when: false
   tags:
     - upgrade
+    - never
 
 - name: Install system packages
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: "{{ system_packages }}"
     state: present
 ```
+
+A atualização geral leva `never`: ela reporta mudança sempre que existe
+pacote novo a montante, o que não é efeito do playbook. Em vez de mascarar
+isso com um `changed_when` que mente sobre o resultado, a tarefa sai do fluxo
+padrão e roda sob demanda com `--tags upgrade`. O `changed_when: false`
+continua ali para o caso de ela ser chamada junto de outras tags.
 
 - [ ] **Step 6: Ligar a role, lint, executar duas vezes**
 
@@ -484,11 +609,13 @@ Em `fedora.yml`, após `repos`:
 
 ```bash
 ansible-lint fedora.yml
+ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags packages --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags packages
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags packages
 ```
 
-Esperado na segunda: `changed=0`.
+Esperado na terceira: `changed=0`. O `--tags upgrade` não roda aqui: a
+atualização geral leva `never` e é invocada à parte.
 
 - [ ] **Step 7: Commit**
 
@@ -498,9 +625,14 @@ git commit -m "feat: role packages com os pacotes dnf da estação
 
 Lista agrupada por finalidade em vars/fedora.yml.
 
-A atualização geral do sistema fica com changed_when: false — ela reporta
-mudança sempre que há pacote novo no repositório, o que não é efeito do
-playbook e inviabilizaria o teste de idempotência."
+A atualização geral do sistema leva a tag never: ela reporta mudança
+sempre que há pacote novo no repositório, o que não é efeito do playbook.
+Sai do fluxo padrão em vez de ser mascarada por um changed_when que
+mentiria sobre o resultado.
+
+Fora da lista: gemini-desktop, que não existe em repositório nenhum. É um
+RPM sem assinatura, de vendor pessoa física, instalado à mão nesta máquina;
+vai para a tabela de restauração manual do README."
 ```
 
 ---
@@ -520,15 +652,27 @@ playbook e inviabilizaria o teste de idempotência."
 
 - [ ] **Step 1: Escrever o teste que falha**
 
+Os sete já estão instalados aqui, então comparar contra o estado local não
+testa nada. O que se testa é que os sete IDs existem no flathub — um ID
+renomeado ou retirado só apareceria na hora de formatar:
+
 ```bash
-flatpak list --app --columns=application | sort > /tmp/flatpak-antes.txt
-diff <(printf '%s\n' com.mongodb.Compass com.moonlight_stream.Moonlight com.spotify.Client io.dbeaver.DBeaverCommunity it.mijorus.gearlever org.ferdium.Ferdium org.kde.yakuake | sort) /tmp/flatpak-antes.txt
+podman run --rm fedora:43 bash -c '
+  dnf install -y flatpak >/dev/null 2>&1
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  for id in com.mongodb.Compass com.moonlight_stream.Moonlight com.spotify.Client \
+            io.dbeaver.DBeaverCommunity it.mijorus.gearlever org.ferdium.Ferdium \
+            org.kde.yakuake; do
+    printf "%-40s " "$id"
+    flatpak remote-info flathub "$id" >/dev/null 2>&1 && echo OK || echo AUSENTE
+  done
+'
 ```
 
-- [ ] **Step 2: Rodar e confirmar**
+- [ ] **Step 2: Rodar e exigir OK nos sete**
 
-Esperado: sem diferença nesta máquina. Em máquina limpa, todas as sete linhas
-aparecem como ausentes — é esse o estado que a role precisa produzir.
+Qualquer `AUSENTE` para a task: aquele application ID não existe mais no
+flathub e precisa ser reencontrado antes de entrar na lista.
 
 - [ ] **Step 3: Acrescentar a lista em `group_vars/all.yml`**
 
@@ -570,11 +714,15 @@ flatpak_apps:
 
 ```bash
 ansible-lint fedora.yml
+ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags flatpak --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags flatpak
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags flatpak
 ```
 
-Esperado na segunda: `changed=0`.
+Esperado na terceira: `changed=0`. Os sete estão em instalação `system`
+nesta máquina, o que é o que o `become: true` da role produz — se você
+removê-lo, os flatpaks passam a ser instalados por usuário e a role reporta
+`changed` para sempre.
 
 - [ ] **Step 6: Commit**
 
@@ -601,22 +749,32 @@ cada build novo no flathub, sem relação com o que o playbook faz."
 - Modify: `fedora.yml`
 
 **Interfaces:**
-- Consumes: `tmp_folder` de `group_vars/all.yml`.
+- Consumes: `tmp_folder` e `target_user` de `group_vars/all.yml`.
 - Produces: `/usr/local/bin/aws`, `/usr/local/bin/azcopy` e o pacote
   `session-manager-plugin`.
 
+O diretório temporário é criado com `become` mas escrito sem, então precisa
+de `owner: "{{ target_user }}"` — sem isso ele fica `root:root` e o `get_url`
+seguinte, que roda como o usuário comum, falha com `EACCES`.
+
 - [ ] **Step 1: Escrever o teste que falha**
 
+`command -v` nesta máquina encontra os três e não prova nada. O teste é a
+role inteira num container limpo:
+
 ```bash
-command -v aws && aws --version
-command -v session-manager-plugin && session-manager-plugin --version
-command -v azcopy && azcopy --version
+podman run --rm -v "$PWD:/repo:ro,Z" -w /repo fedora:43 bash -c '
+  dnf install -y ansible-core tar gzip unzip >/dev/null 2>&1
+  ansible-playbook -i inventory/hosts.ini fedora.yml --tags binaries --connection=local
+  aws --version && session-manager-plugin --version && azcopy --version
+'
 ```
 
-- [ ] **Step 2: Rodar e confirmar o estado**
+- [ ] **Step 2: Rodar e confirmar a falha**
 
-Esperado nesta máquina: os três respondem. Em máquina limpa, os três falham
-com `command not found`.
+Esperado antes da role existir: o playbook não executa nada e os três
+comandos falham com `command not found`. É esse o vermelho que a role
+precisa apagar.
 
 - [ ] **Step 3: Criar `roles/binaries/tasks/main.yml`**
 
@@ -627,6 +785,7 @@ com `command not found`.
   ansible.builtin.file:
     path: "{{ tmp_folder }}"
     state: directory
+    owner: "{{ target_user }}"
     mode: "0755"
 
 - name: Install AWS CLI v2
@@ -644,9 +803,11 @@ com `command not found`.
 
 - [ ] **Step 4: Criar `roles/binaries/tasks/aws_cli.yml`**
 
-O instalador do AWS CLI não expõe estado consultável, então o `creates` do
-`command` faz o papel do guard de idempotência: com `/usr/local/bin/aws`
-presente, a tarefa é pulada.
+O instalador do AWS CLI não expõe estado consultável. Com `--update` ele é
+seguro de reexecutar e imprime `Found same AWS CLI version: ... Skipping
+install.` no stdout quando não há o que fazer — é essa string que dá a
+idempotência. Sem `--update`, ele aborta com `Found preexisting AWS CLI
+installation` no stderr.
 
 ```yaml
 ---
@@ -665,8 +826,8 @@ presente, a tarefa é pulada.
 - name: Install AWS CLI v2
   become: true
   ansible.builtin.command: "{{ tmp_folder }}/aws/install --update"
-  register: aws_install
-  changed_when: "'already exists' not in aws_install.stderr"
+  register: binaries_aws_install
+  changed_when: "'Skipping install' not in binaries_aws_install.stdout"
 ```
 
 - [ ] **Step 5: Criar `roles/binaries/tasks/fedora.yml`**
@@ -675,7 +836,7 @@ presente, a tarefa é pulada.
 ---
 - name: Install session-manager-plugin
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm
     state: present
     disable_gpg_check: true
@@ -748,11 +909,14 @@ o pacote do session-manager-plugin.
 
 ```bash
 ansible-lint fedora.yml
+ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags binaries --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags binaries
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags binaries
 ```
 
-Esperado na segunda: `changed=0` nas tarefas de instalação. `get_url` e
+Esperado na terceira: `changed=0` nas tarefas de instalação, incluindo
+`Install AWS CLI v2` — se ela reportar `changed`, o `changed_when` está
+testando a string errada; confira a saída real com `-v`. `get_url` e
 `unarchive` reportam mudança porque o diretório temporário é apagado ao fim
 de cada execução; isso é esperado e não conta para o critério.
 
@@ -767,7 +931,11 @@ distribuições. A chave GPG do SSM Agent que existia no repositório era de
 outro produto e estava expirada desde fevereiro de 2025.
 
 O instalador do AWS CLI não expõe estado consultável; a idempotência vem
-de --update mais changed_when sobre a saída."
+de --update mais changed_when sobre 'Skipping install', que é o que o
+instalador realmente imprime quando não há o que fazer.
+
+O diretório temporário é criado com owner do usuário alvo: criado por root
+e escrito sem become, ele quebrava com EACCES em qualquer máquina."
 ```
 
 ---
@@ -827,11 +995,16 @@ Esperado nesta máquina: `docker` aparece nos grupos e os dois serviços saem
 
 ```bash
 ansible-lint fedora.yml
+ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags system_config --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags system_config
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags system_config
 ```
 
-Esperado na segunda: `changed=0`.
+Esperado na terceira: `changed=0`.
+
+Nota para o README: entrar no grupo `docker` só vale a partir de um novo
+login. Na máquina recém-provisionada, `docker ps` falha com permissão negada
+até o usuário deslogar e logar de novo.
 
 - [ ] **Step 5: Verificar firewalld antes de fechar a task**
 
@@ -854,8 +1027,9 @@ git commit -m "feat: role system_config com grupos e serviços
 
 Usuário em wheel e docker; docker.service e anydesk.service habilitados.
 
-Firewalld verificado: sem regra personalizada além do padrão da zona, então
-não há nada a versionar."
+<Escreva aqui o resultado real do Step 5, uma das duas linhas:>
+<  'Firewalld verificado: sem regra personalizada além do padrão da zona.'>
+<  'Firewalld: versiona as regras X e Y, encontradas fora do padrão.'>"
 ```
 
 ---
@@ -906,14 +1080,50 @@ cp ~/.ssh/config    files/dotfiles/ssh_config
 
 Rode o `grep` do Step 1 agora e confirme a saída vazia.
 
-- [ ] **Step 4: Revisar `files/dotfiles/gitconfig` à mão**
+- [ ] **Step 4: Tirar o caminho fixo e o lixo de sessão**
+
+Os arquivos de origem trazem `/home/nuvidio` literal e uma variável de
+sessão morta. Versionados como estão, contradizem o objetivo de servir outra
+máquina sem edição — o mesmo motivo pelo qual a role `gather` usa
+`target_home`.
+
+Em `files/dotfiles/bash_profile` linha 12 e `files/dotfiles/bashrc` linha 35,
+troque:
+
+```bash
+export PATH="/home/nuvidio/.local/bin:$PATH"
+```
+
+por:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+E remova por inteiro a linha 37 de `files/dotfiles/bashrc`, que exporta um
+`SCRATCH` apontando para um diretório de scratchpad de sessão que não existe
+mais:
+
+```bash
+export SCRATCH=/tmp/claude-1000/-home-nuvidio-git-homelab/834778d3-.../scratchpad/coleta
+```
+
+Confirme que não sobrou nenhum caminho absoluto do home:
+
+```bash
+grep -n '/home/nuvidio' files/dotfiles/
+```
+
+Esperado: saída vazia.
+
+- [ ] **Step 5: Revisar `files/dotfiles/gitconfig` à mão**
 
 Abra o arquivo. Ele contém `credential.https://github.com.helper=!/usr/bin/gh
 auth git-credential`, que é um comando, não um token — pode ficar. Confirme
 que não há `[user] signingkey` apontando para caminho de chave privada nem
 nenhum valor literal de credencial.
 
-- [ ] **Step 5: Acrescentar a lista em `group_vars/all.yml`**
+- [ ] **Step 6: Acrescentar a lista em `group_vars/all.yml`**
 
 ```yaml
 dotfiles:
@@ -931,7 +1141,7 @@ dotfiles:
     mode: "0600"
 ```
 
-- [ ] **Step 6: Criar `roles/dotfiles/tasks/main.yml`**
+- [ ] **Step 7: Criar `roles/dotfiles/tasks/main.yml`**
 
 `~/.ssh` precisa existir com 0700 antes do `config` ser escrito, senão o
 cliente SSH recusa a configuração. `~/.aws` é criado vazio de propósito: o
@@ -961,7 +1171,7 @@ cliente SSH recusa a configuração. `~/.aws` é criado vazio de propósito: o
     label: "{{ item.dest }}"
 ```
 
-- [ ] **Step 7: Ligar a role, lint, executar duas vezes**
+- [ ] **Step 8: Ligar a role, lint, executar duas vezes**
 
 ```yaml
     - { role: dotfiles, tags: [dotfiles] }
@@ -969,13 +1179,21 @@ cliente SSH recusa a configuração. `~/.aws` é criado vazio de propósito: o
 
 ```bash
 ansible-lint fedora.yml
+ansible-playbook -i inventory/hosts.ini fedora.yml --tags dotfiles --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --tags dotfiles
 ansible-playbook -i inventory/hosts.ini fedora.yml --tags dotfiles
 ```
 
-Esperado na segunda: `changed=0`. Esta role não precisa de `--ask-become-pass`.
+Esperado na terceira: `changed=0`. Esta role não precisa de
+`--ask-become-pass`.
 
-- [ ] **Step 8: Confirmar que o SSH continua funcionando**
+⚠️ Antes de commitar, note que `files/dotfiles/ssh_config` versiona
+`Host 192.168.100.*` — a faixa de rede interna do homelab. É topologia de
+rede num repositório. Risco baixo num repositório privado, mas se preferir
+não registrar a faixa, generalize a entrada ou mova esse bloco para um
+arquivo fora do versionamento.
+
+- [ ] **Step 9: Confirmar que o SSH continua funcionando**
 
 ```bash
 ssh -T git@github.com-personal
@@ -984,7 +1202,7 @@ ssh -T git@github.com-personal
 Esperado: `Hi gleitoncampos! You've successfully authenticated`. Se falhar,
 compare `~/.ssh/config` com o backup que o `backup: true` deixou ao lado.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add -A
@@ -994,7 +1212,10 @@ Quatro arquivos, todos varridos por token, secret, password e cabeçalho de
 chave privada antes de entrar no repositório.
 
 Cria ~/.ssh em 0700 e ~/.aws vazio: a configuração é versionada, as
-credenciais não. O helper do git é um comando do gh, não um token."
+credenciais não. O helper do git é um comando do gh, não um token.
+
+/home/nuvidio literal vira \$HOME, e sai um SCRATCH que apontava para um
+diretório de sessão morto."
 ```
 
 ---
@@ -1091,8 +1312,11 @@ test("erra quando não há nem credencial nem variável", () => {
 
 - [ ] **Step 3: Rodar o teste e confirmar que falha**
 
+No Node 22 o argumento posicional de `--test` é arquivo ou glob, não
+diretório a varrer; `node --test files/gather/` falha com `MODULE_NOT_FOUND`.
+
 ```bash
-node --test files/gather/
+node --test 'files/gather/*.test.mjs'
 ```
 
 Esperado: os testes 1 e 3 falham, porque `loadSecret` ainda ignora
@@ -1137,7 +1361,7 @@ export function loadSecret(envVar = "GATHER_WEBHOOK_SECRET", credName = null) {
 - [ ] **Step 5: Rodar o teste e confirmar que passa**
 
 ```bash
-node --test files/gather/
+node --test 'files/gather/*.test.mjs'
 ```
 
 Esperado: `pass 4`, `fail 0`.
@@ -1334,6 +1558,10 @@ gather_credentials:
 [Unit]
 Description=Reflete o uso do Claude Code num Smart Object do Gather
 After=network-online.target
+# Sem segredo preenchido o serviço não sobe, em vez de reiniciar em laço.
+ConditionFileNotEmpty={{ gather_cred_dir }}/claude
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -1350,12 +1578,22 @@ RestartSec=15
 WantedBy=default.target
 ```
 
+`ConditionFileNotEmpty` é o que impede um laço de reinício em máquina
+recém-provisionada: a role cria os arquivos de credencial vazios, e
+`LoadCredential` aceita arquivo de zero byte sem reclamar. Sem a condição, o
+`loadSecret` lançaria, o `Restart=always` reiniciaria a cada 15 segundos, e o
+handler de restart falharia junto, derrubando a execução do playbook. Com
+ela, o systemd apenas não inicia o serviço e registra a condição não
+satisfeita. `StartLimitBurst` é a segunda barreira, para o caso de o serviço
+falhar por outro motivo.
+
 - [ ] **Step 5: Criar `roles/gather/templates/gather-ci-status.service.j2`**
 
 ```jinja
 [Unit]
 Description=Atualiza o Smart Object "Bot Status Monitor" com a saúde dos deploys (GitHub Actions)
 After=network-online.target
+ConditionFileNotEmpty={{ gather_cred_dir }}/status
 
 [Service]
 Type=oneshot
@@ -1371,6 +1609,7 @@ TimeoutStartSec=300
 [Unit]
 Description=Atualiza o Smart Object "PRs" do Gather com os PRs abertos no GitHub
 After=network-online.target
+ConditionFileNotEmpty={{ gather_cred_dir }}/webhook
 
 [Service]
 Type=oneshot
@@ -1470,19 +1709,29 @@ reexecução nunca sobrescreva um segredo já preenchido à mão.
     - gather-ci-status.timer
     - gather-prs.service
     - gather-prs.timer
-  notify: Reload systemd user daemon
+  notify:
+    - Reload systemd user daemon
+    - Restart gather claude status
 
-- name: Enable Gather units
+- name: Enable and start Gather units
   ansible.builtin.systemd_service:
     name: "{{ item }}"
     scope: user
     enabled: true
+    state: started
     daemon_reload: true
   loop:
     - gather-claude-status.service
     - gather-ci-status.timer
     - gather-prs.timer
 ```
+
+Duas escolhas que parecem detalhe e não são. Alterar um template notifica os
+dois handlers, não só o reload: sem o restart, o serviço em execução continua
+rodando a unit antiga até o próximo boot. E `state: started` junto de
+`enabled: true` porque `enabled` sozinho deixa os timers habilitados mas
+parados até o próximo login — numa máquina recém-provisionada nada dispararia,
+e o `list-timers` do Step 12 mostraria `n/a`.
 
 - [ ] **Step 9: Criar `roles/gather/handlers/main.yml`**
 
@@ -1539,6 +1788,11 @@ Esperado: `LoadCredential=gather_status:...` presente; o serviço oneshot
 termina com `status=0/SUCCESS`; o log não traz "ausente ou não começa com
 'whsec_'"; os dois timers aparecem com próximo disparo agendado.
 
+Se algum serviço reportar `ConditionFileNotEmpty=... was not met`, o segredo
+correspondente não foi preenchido no Step 10 — preencha e repita. Esse é o
+comportamento correto: o serviço se recusa a subir em vez de reiniciar em
+laço.
+
 - [ ] **Step 13: Remover os arquivos de segredo antigos do home**
 
 Só depois que o Step 12 passou:
@@ -1579,16 +1833,20 @@ conteúdo preenchido à mão."
 
 - [ ] **Step 1: Escrever o teste que falha**
 
-O comportamento a garantir é que a role **não** rode sem a tag:
+O comportamento a garantir é que a role **não** rode sem a tag. Note que
+`grep nvidia` aqui seria um no-op: `--list-tasks` não expande `include_tasks`,
+então o nome das tarefas de dentro do arquivo por distribuição nunca aparece,
+com ou sem a tag. O que aparece é o nome da role:
 
 ```bash
-ansible-playbook -i inventory/hosts.ini fedora.yml --list-tasks | grep -c nvidia
+ansible-playbook -i inventory/hosts.ini fedora.yml --list-tasks | grep -c hardware
 ```
 
 - [ ] **Step 2: Rodar e confirmar**
 
-Esperado antes: `0`, porque a role ainda não existe. Depois do Step 6, o
-`--list-tasks` sem `--tags` deve continuar sem listar as tarefas de nvidia.
+Esperado antes: `0`, porque a role ainda não existe. Depois do Step 6, este
+mesmo comando deve continuar retornando `0`, e a variante com
+`--tags hardware` deve retornar mais que zero.
 
 - [ ] **Step 3: Acrescentar a lista em `vars/fedora.yml`**
 
@@ -1623,14 +1881,14 @@ tag não deixa repositório sem uso em `/etc/yum.repos.d`.
 ---
 - name: Add RPM Fusion nvidia driver repository
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ ansible_distribution_major_version }}.noarch.rpm"
     state: present
     disable_gpg_check: true
 
 - name: Install hardware specific packages
   become: true
-  ansible.builtin.dnf:
+  ansible.builtin.dnf5:
     name: "{{ hardware_packages }}"
     state: present
 ```
@@ -1650,17 +1908,24 @@ ansible-playbook -i inventory/hosts.ini fedora.yml --list-tasks | grep -c hardwa
 ansible-playbook -i inventory/hosts.ini fedora.yml --list-tasks --tags hardware | grep -c hardware
 ```
 
-Esperado: `0` no primeiro, número maior que zero no segundo.
+Esperado: `0` no primeiro, número maior que zero no segundo. A tag da role se
+propaga para as tarefas que o `include_tasks` traz, então declarar a tag uma
+vez na role basta — não é preciso repeti-la dentro de `fedora.yml`.
 
 - [ ] **Step 8: Lint e execução com a tag, duas vezes**
 
 ```bash
 ansible-lint fedora.yml
+ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags hardware --check
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags hardware
 ansible-playbook -i inventory/hosts.ini fedora.yml --ask-become-pass --tags hardware
 ```
 
-Esperado na segunda: `changed=0`.
+Esperado na terceira: `changed=0`.
+
+Esta role não ganha step de container: `akmod-nvidia` compila contra o kernel
+do host e `virtualbox-guest-additions` só faz sentido dentro de uma VM.
+Validar em container daria um falso negativo, não um sinal.
 
 - [ ] **Step 9: Commit**
 
@@ -1722,17 +1987,26 @@ apt_repositories:
     repo: "deb [arch=amd64] https://packages.microsoft.com/repos/code stable main"
     key_url: https://packages.microsoft.com/keys/microsoft.asc
 
+  # A chave do gh é keyring binário, não armored. O apt decide o formato pela
+  # extensão do arquivo, então esta entrada precisa terminar em .gpg — salva
+  # como .asc, o apt rejeita o repositório.
   - name: github-cli
+    ext: gpg
     repo: "deb [arch=amd64] https://cli.github.com/packages stable main"
     key_url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+
+  - name: azure-cli
+    repo: "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli {{ ansible_distribution_release }} main"
+    key_url: https://packages.microsoft.com/keys/microsoft.asc
 
   - name: hashicorp
     repo: "deb [arch=amd64] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
     key_url: https://apt.releases.hashicorp.com/gpg
 
+  # Mesma correção do Fedora: não existe chave 8.2; a série é assinada pela 8.0.
   - name: mongodb
     repo: "deb [arch=amd64] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/8.2 multiverse"
-    key_url: https://pgp.mongodb.com/server-8.2.asc
+    key_url: https://www.mongodb.org/static/pgp/server-8.0.asc
 
   - name: anydesk
     repo: "deb [arch=amd64] http://deb.anydesk.com/ all main"
@@ -1776,7 +2050,9 @@ system_packages:
 
 hardware_packages:
   - ubuntu-drivers-common
-  - virtualbox-guest-additions-iso
+  # -iso é pacote de host; o convidado precisa destes dois.
+  - virtualbox-guest-utils
+  - virtualbox-guest-x11
   - solaar
   - minicom
 ```
@@ -1799,7 +2075,7 @@ a referencia com `signed-by`.
   become: true
   ansible.builtin.get_url:
     url: "{{ item.key_url }}"
-    dest: "/etc/apt/keyrings/{{ item.name }}.asc"
+    dest: "/etc/apt/keyrings/{{ item.name }}.{{ item.ext | default('asc') }}"
     mode: "0644"
   loop: "{{ apt_repositories }}"
   loop_control:
@@ -1808,13 +2084,21 @@ a referencia com `signed-by`.
 - name: Add third party repositories
   become: true
   ansible.builtin.apt_repository:
-    repo: "{{ item.repo | replace('[arch=amd64]', '[arch=amd64 signed-by=/etc/apt/keyrings/' ~ item.name ~ '.asc]') }}"
+    repo: >-
+      {{ item.repo | replace('[arch=amd64]',
+         '[arch=amd64 signed-by=/etc/apt/keyrings/' ~ item.name ~ '.' ~ (item.ext | default('asc')) ~ ']') }}
     filename: "{{ item.name }}"
     state: present
-    update_cache: true
+    update_cache: false
   loop: "{{ apt_repositories }}"
   loop_control:
     label: "{{ item.name }}"
+
+# update_cache uma vez ao final, em vez de sete vezes dentro do loop.
+- name: Update apt cache
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
 ```
 
 - [ ] **Step 5: Criar `roles/packages/tasks/debian.yml`**
@@ -1892,12 +2176,27 @@ ansible-lint ubuntu.yml
 
 Esperado: ambos sem erro.
 
-- [ ] **Step 9: Registrar a limitação**
+- [ ] **Step 9: Registrar a limitação e a perda de escopo**
 
-Não há máquina Ubuntu para executar. A validação para em syntax-check e lint;
-os nomes de pacote de `vars/ubuntu.yml` não foram conferidos contra um
-`apt-cache`. Isso vai para o README na Task 12 e para a mensagem de commit —
-é uma limitação conhecida da entrega, não um descuido.
+Duas coisas precisam ficar escritas, não subentendidas.
+
+A validação para em syntax-check e lint. Não há máquina Ubuntu, e os nomes de
+pacote em `vars/ubuntu.yml` não foram conferidos contra `apt-cache`.
+
+E o `ubuntu.yml` **não** cobre o mesmo conjunto que o `fedora.yml`, ao
+contrário do que a spec afirma. Ficam de fora, sem equivalente resolvido:
+
+| Ausente no Ubuntu | Motivo |
+|---|---|
+| `discord` | precisa do `.deb` oficial, não empacotado no plano |
+| `antigravity` | repositório é RPM apenas |
+| `ndi-sdk` | vem da RPM Fusion nonfree |
+| `mediawriter` | disponível só por flatpak |
+| `docker-model-plugin` | não publicado para Ubuntu |
+| plugins do OBS (6) | empacotados só no Fedora/RPM Fusion |
+
+Acrescente esta tabela ao README na Task 12. Uma omissão registrada é uma
+decisão; uma omissão silenciosa é um bug que só aparece na hora de formatar.
 
 - [ ] **Step 10: Commit**
 
@@ -1914,7 +2213,11 @@ ubuntu-restricted-extras e o driver nvidia sai do ubuntu-drivers, que
 escolhe a versão compatível com o hardware e com o Secure Boot.
 
 Validado só por syntax-check e ansible-lint: não há máquina Ubuntu para
-executar, e os nomes de pacote não foram conferidos contra apt-cache."
+executar, e os nomes de pacote não foram conferidos contra apt-cache.
+
+Não cobre o mesmo conjunto do Fedora: discord, antigravity, ndi-sdk,
+mediawriter, docker-model-plugin e os seis plugins do OBS ficam de fora,
+sem equivalente resolvido. A tabela está no README."
 ```
 
 ---
@@ -1930,7 +2233,10 @@ executar, e os nomes de pacote não foram conferidos contra apt-cache."
 
 - [ ] **Step 1: Reescrever `readme.md`**
 
-```markdown
+A cerca externa usa til para que as cercas de crase de dentro não a fechem
+antes da hora — o conteúdo entre as linhas de til é o arquivo inteiro.
+
+~~~~
 # ansible-playbooks
 
 Provisiona uma estação de trabalho do zero, reproduzindo aplicações,
@@ -1944,14 +2250,20 @@ ansible-galaxy collection install -r collections/requirements.yml
 ansible-playbook fedora.yml --ask-become-pass
 ```
 
-Pacotes ligados ao hardware desta máquina não rodam por padrão:
+Pacotes ligados ao hardware desta máquina não rodam por padrão, nem a
+atualização geral do sistema:
 
 ```bash
 ansible-playbook fedora.yml --ask-become-pass --tags hardware
+ansible-playbook fedora.yml --ask-become-pass --tags upgrade
 ```
 
 Tags disponíveis: `repos`, `packages`, `flatpak`, `binaries`,
-`system_config`, `dotfiles`, `gather`, `hardware`.
+`system_config`, `dotfiles`, `gather`, `hardware`, `upgrade`.
+
+Depois da primeira execução, **deslogue e logue de novo**: entrar no grupo
+`docker` só vale a partir de uma nova sessão, e até lá `docker ps` falha com
+permissão negada.
 
 ## O que não está aqui
 
@@ -1967,23 +2279,46 @@ mão, a partir do gerenciador de senhas ou de backup cifrado:
 | Segredos do Gather | `~/.config/gather/{claude,status,webhook}` |
 
 O playbook cria os diretórios com as permissões corretas e os arquivos de
-segredo vazios; o conteúdo é seu.
+segredo vazios; o conteúdo é seu. Os serviços do Gather não sobem enquanto os
+arquivos estiverem vazios — é intencional, e não um erro.
 
-Também fora: configuração do KDE Plasma e bibliotecas Python de projeto.
+Também instalado à mão, por não existir em repositório nenhum:
+
+| O quê | Onde |
+|---|---|
+| `gemini-desktop` | RPM de release em `github.com/bwendell/gemini-desktop` |
+
+Ele não é assinado, então cada instalação é uma decisão consciente de rodar
+binário não verificado. Por isso ficou fora do playbook.
+
+Fora de escopo por decisão: configuração do KDE Plasma e bibliotecas Python
+de projeto.
 
 ## Estado
 
-`fedora.yml` roda e é idempotente na máquina de origem.
+`fedora.yml` roda e é idempotente na máquina de origem, e cada role foi
+validada uma vez em container `fedora:43` limpo.
 
 `ubuntu.yml` foi validado apenas por `--syntax-check` e `ansible-lint`. Não
 houve máquina Ubuntu para executá-lo, e os nomes de pacote em
 `vars/ubuntu.yml` não foram conferidos contra `apt-cache`. Trate a primeira
 execução como um teste.
 
+O `ubuntu.yml` também não cobre o mesmo conjunto do `fedora.yml`:
+
+| Ausente no Ubuntu | Motivo |
+|---|---|
+| `discord` | precisa do `.deb` oficial, ainda não empacotado aqui |
+| `antigravity` | repositório é RPM apenas |
+| `ndi-sdk` | vem da RPM Fusion nonfree |
+| `mediawriter` | disponível só por flatpak |
+| `docker-model-plugin` | não publicado para Ubuntu |
+| plugins do OBS (6) | empacotados só no Fedora/RPM Fusion |
+
 ## Design
 
 `docs/superpowers/specs/2026-08-20-ansible-provisionamento-desktop-design.md`
-```
+~~~~
 
 - [ ] **Step 2: Verificar os comandos do README**
 
@@ -2001,7 +2336,8 @@ git commit -m "docs: reescreve o readme
 
 Descreve uso, tags e — o que mais importa numa máquina recém-formatada — a
 lista do que o playbook deliberadamente não restaura, com onde buscar cada
-credencial.
+credencial, mais o gemini-desktop, que não existe em repositório nenhum e
+não é assinado.
 
-Declara que ubuntu.yml nunca foi executado."
+Declara que ubuntu.yml nunca foi executado e o que ele deixa de cobrir."
 ```
