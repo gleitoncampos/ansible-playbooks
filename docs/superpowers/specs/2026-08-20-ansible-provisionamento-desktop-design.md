@@ -114,7 +114,7 @@ adicione repositório sem uso.
 
 Pacotes nativos: docker-ce com cli, buildx, compose e model plugin; code;
 google-chrome-stable; chromium; firefox; gh; terraform; azure-cli; anydesk;
-discord; antigravity; gemini-desktop; mongodb-mongosh; obs-studio com os
+discord; antigravity; mongodb-mongosh; obs-studio com os
 plugins distroav, droidcam, pwvideo, vlc-video, webkitgtk e x264; nodejs;
 python3-pip; pipx; ansible-core; python3-ansible-lint; openfortivpn;
 vim-enhanced; git; krdc; krfb; kde-connect; libreoffice writer, calc,
@@ -126,6 +126,10 @@ Flatpaks, via remote flathub: `com.mongodb.Compass`,
 `org.kde.yakuake`.
 
 Binários fora de gerenciador: AWS CLI v2, session-manager-plugin, azcopy.
+
+`gemini-desktop`, instalado nesta máquina, não entra: não existe em
+repositório nenhum e o RPM não é assinado. Vai para a tabela de restauração
+manual do README.
 
 O session-manager-plugin é instalado do pacote oficial da AWS, sem a chave
 GPG antiga:
@@ -315,16 +319,25 @@ com uma ressalva: `changed=0` absoluto não é alcançável. Três tarefas
 reportam mudança sempre que existe atualização disponível a montante, o que
 independe do playbook:
 
-| Tarefa | Motivo |
+| Tarefa | Tratamento |
 |---|---|
-| `dnf: name="*" state=latest` | há pacote novo no repositório |
-| `flatpak update` | há build novo no flathub |
-| instalador shell do AWS CLI | não expõe estado consultável |
+| `dnf5: name="*" state=latest` | sai do fluxo padrão com a tag `never` |
+| instalador shell do AWS CLI | `--update` mais `changed_when` sobre `Skipping install` |
 
-Essas três recebem `changed_when` explícito que reflita mudança real, e o
-critério de aceite recai sobre as tarefas declarativas: instalação de
+A atualização geral não recebe um `changed_when` que a declare inalterada —
+isso mentiria sobre o resultado. Ela sai do fluxo padrão e roda sob demanda
+com `--tags upgrade`. O `flatpak update` do playbook antigo simplesmente não
+é replicado.
+
+O critério de aceite recai sobre as tarefas declarativas: instalação de
 pacotes, repositórios, flatpaks, dotfiles e units devem sair todas `ok` na
 segunda execução.
+
+Antes disso, cada role é validada uma vez em container `fedora:43` limpo. Essa
+etapa não é zelo: a primeira versão do plano derivado desta spec carregava
+quatro URLs mortas e dois pacotes sem repositório, e nenhum dos seus testes
+os detectou, porque todos rodavam contra a máquina de origem, que já estava
+no estado desejado.
 
 Para o Gather, acrescenta-se: `systemctl --user status` nas cinco units, e
 uma execução manual de `gather_ci_status.mjs` com `--dry-run` confirmando que
