@@ -1,0 +1,53 @@
+---
+# Usuário desktop alvo (dono dos flatpaks user, binários em ~/.local/bin, etc.)
+target_user: nuvidio
+target_home: "/home/{{ target_user }}"
+
+# Versões pinadas de binários baixados direto (atualizar quando quiser bump).
+# URLs validadas em 2026-10-09 (HTTP 200/302).
+go_version: "1.27.2"
+flyway_version: "11.8.2"
+
+# Base do download do Flyway CLI (maven central). O artefato -linux-x64.tar.gz
+# existe no maven central até ~11.8.2; versões mais novas podem não publicar lá.
+flyway_base_url: "https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline"
+
+# NVIDIA: série do driver proprietário para a RTX 4050 Laptop (Ada).
+nvidia_driver_branch: "580"
+
+# Kiro IDE: pacote .deb oficial (Ubuntu). No Ubuntu o caminho suportado é o
+# pacote (a doc manda 'apt remove kiro'); o apt resolve dependências e integra
+# ao sistema — dispensa o fix de wrapper/symlink que o tarball exigia no Fedora.
+# URL/versão validada em 2026-10-09 (HTTP 200). Bump: trocar kiro_ide_version.
+kiro_ide_version: "1.2.56"
+kiro_ide_base_url: "https://prod.download.desktop.kiro.dev/releases/stable/linux-x64/signed"
+kiro_ide_deb_url: "{{ kiro_ide_base_url }}/{{ kiro_ide_version }}/deb/kiro-ide-{{ kiro_ide_version }}-stable-linux-x64.deb"
+
+# Flatpaks (migram 1:1 do Fedora). Trayscale entra aqui (era dnf no Fedora).
+flatpak_apps:
+  - com.mongodb.Compass
+  - com.moonlight_stream.Moonlight
+  - com.spotify.Client
+  - com.usebottles.bottles
+  - io.dbeaver.DBeaverCommunity
+  - it.mijorus.gearlever
+  - org.ferdium.Ferdium
+  - org.kde.yakuake
+  - dev.deedles.Trayscale
+
+# Apps do apt (universe) + os que vêm de PPA (ver role apt_base).
+apt_base_packages:
+  - qbittorrent
+  - vlc
+  - libreoffice
+  - solaar
+  - git
+  - curl
+  - wget
+  - unzip
+  - ca-certificates
+  - gnupg
+  - apt-transport-https
+  - python3-pip
+  - pipx
+  - obs-studio

@@ -1,0 +1,4 @@
+---
+- name: Avisar reboot
+  ansible.builtin.debug:
+    msg: "Driver NVIDIA instalado/atualizado. REINICIE a máquina antes de usar a GPU."

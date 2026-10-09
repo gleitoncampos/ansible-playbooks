@@ -1,0 +1,25 @@
+---
+# Flatpak + Flathub + apps (migram 1:1 do Fedora).
+
+- name: Instalar flatpak e plugin do GNOME/KDE Software
+  ansible.builtin.apt:
+    name:
+      - flatpak
+      - plasma-discover-backend-flatpak
+    state: present
+  # plasma-discover-backend-flatpak: integra flatpak ao Discover (KDE).
+
+- name: Adicionar remote Flathub (system-wide)
+  community.general.flatpak_remote:
+    name: flathub
+    state: present
+    flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+    method: system
+
+- name: Instalar apps flatpak
+  community.general.flatpak:
+    name: "{{ item }}"
+    state: present
+    remote: flathub
+    method: system
+  loop: "{{ flatpak_apps }}"

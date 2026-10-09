@@ -1,0 +1,131 @@
+---
+# Ferramentas instaladas "por outros meios": binário, tarball, installer próprio, pipx.
+# Idempotência: cada task checa a presença antes de reinstalar quando possível.
+
+# ---------------- AWS CLI v2 ----------------
+- name: AWS CLI | checar instalação
+  ansible.builtin.command: /usr/local/bin/aws --version
+  register: binaries_aws_check
+  changed_when: false
+  failed_when: false
+
+- name: AWS CLI | baixar instalador
+  ansible.builtin.get_url:
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+    dest: /tmp/awscliv2.zip
+    mode: "0644"
+  when: binaries_aws_check.rc != 0
+
+- name: AWS CLI | descompactar
+  ansible.builtin.unarchive:
+    src: /tmp/awscliv2.zip
+    dest: /tmp
+    remote_src: true
+  when: binaries_aws_check.rc != 0
+
+- name: AWS CLI | instalar
+  ansible.builtin.command: /tmp/aws/install --update
+  when: binaries_aws_check.rc != 0
+  changed_when: true
+
+# ---------------- Session Manager Plugin ----------------
+- name: SSM plugin | checar
+  ansible.builtin.command: session-manager-plugin --version
+  register: binaries_ssm_check
+  changed_when: false
+  failed_when: false
+
+- name: SSM plugin | instalar .deb oficial
+  ansible.builtin.apt:
+    deb: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb
+    state: present
+  when: binaries_ssm_check.rc != 0
+
+# ---------------- Go ----------------
+- name: Go | checar versão instalada
+  ansible.builtin.command: /usr/local/go/bin/go version
+  register: binaries_go_check
+  changed_when: false
+  failed_when: false
+
+- name: Go | baixar e extrair tarball oficial
+  ansible.builtin.unarchive:
+    src: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
+    dest: /usr/local
+    remote_src: true
+  when: go_version not in (binaries_go_check.stdout | default(''))
+
+- name: Go | PATH no profile
+  ansible.builtin.copy:
+    dest: /etc/profile.d/go.sh
+    mode: "0644"
+    content: 'export PATH=$PATH:/usr/local/go/bin'
+
+# ---------------- Flyway ----------------
+- name: Flyway | checar
+  ansible.builtin.stat:
+    path: "/opt/flyway-{{ flyway_version }}/flyway"
+  register: binaries_flyway_bin
+
+- name: Flyway | baixar e extrair
+  ansible.builtin.unarchive:
+    src: "{{ flyway_base_url }}/{{ flyway_version }}/flyway-commandline-{{ flyway_version }}-linux-x64.tar.gz"
+    dest: /opt
+    remote_src: true
+  when: not binaries_flyway_bin.stat.exists
+
+- name: Flyway | symlink em /usr/local/bin
+  ansible.builtin.file:
+    src: "/opt/flyway-{{ flyway_version }}/flyway"
+    dest: /usr/local/bin/flyway
+    state: link
+  when: not binaries_flyway_bin.stat.exists
+
+# ---------------- pipx: zanshin ----------------
+- name: Pipx | garantir PATH
+  ansible.builtin.command: pipx ensurepath
+  become: true
+  become_user: "{{ target_user }}"
+  changed_when: false
+
+- name: Zanshin CLI (via pipx)
+  community.general.pipx:
+    name: zanshincli
+    state: present
+  become: true
+  become_user: "{{ target_user }}"
+
+# ---------------- Kiro CLI ----------------
+# Installer próprio (não é apt). Roda como usuário, instala em ~/.local/bin.
+- name: Kiro CLI | checar
+  ansible.builtin.stat:
+    path: "{{ target_home }}/.local/bin/kiro-cli"
+  register: binaries_kiro_cli_bin
+
+- name: Kiro CLI | instalar via script oficial
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://cli.kiro.dev/install | bash
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  when: not binaries_kiro_cli_bin.stat.exists
+  changed_when: true
+
+# ---------------- Claude Code CLI ----------------
+- name: Claude CLI | checar
+  ansible.builtin.stat:
+    path: "{{ target_home }}/.local/bin/claude"
+  register: binaries_claude_bin
+
+- name: Claude CLI | instalar via script oficial
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  when: not binaries_claude_bin.stat.exists
+  changed_when: true
