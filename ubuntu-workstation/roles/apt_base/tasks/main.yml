@@ -1,0 +1,91 @@
+---
+# PPAs (para evitar snap) + instalação de pacotes do universe e dos repos de terceiros.
+
+- name: Garantir software-properties-common (fornece add-apt-repository)
+  ansible.builtin.apt:
+    name: software-properties-common
+    state: present
+
+# ---- Firefox via PPA mozillateam (evita o snap padrão do Ubuntu) ----
+- name: Mozilla Team PPA (Firefox .deb)
+  ansible.builtin.apt_repository:
+    repo: ppa:mozillateam/ppa
+    state: present
+
+- name: Pinar Firefox para o PPA (prioridade sobre o pacote snap-transicional)
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/mozilla-firefox
+    mode: "0644"
+    content: |
+      Package: firefox*
+      Pin: release o=LP-PPA-mozillateam
+      Pin-Priority: 1001
+
+# ---- Chromium via PPA xtradeb (evita o snap-transicional do Ubuntu) ----
+- name: Xtradeb PPA (Chromium .deb)
+  ansible.builtin.apt_repository:
+    repo: ppa:xtradeb/apps
+    state: present
+
+# ---- OBS Studio via PPA oficial ----
+- name: OBS Studio PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:obsproject/obs-studio
+    state: present
+
+- name: Atualizar cache após PPAs
+  ansible.builtin.apt:
+    update_cache: true
+
+# ---- Pacotes base (universe) ----
+- name: Instalar pacotes base do apt
+  ansible.builtin.apt:
+    name: "{{ apt_base_packages }}"
+    state: present
+
+- name: Instalar Firefox (do PPA mozillateam)
+  ansible.builtin.apt:
+    name: firefox
+    state: present
+
+- name: Instalar Chromium (do PPA xtradeb)
+  ansible.builtin.apt:
+    name: chromium
+    state: present
+
+# ---- Pacotes vindos dos repos de terceiros (role apt_repos) ----
+- name: Instalar apps dos repos de terceiros
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+      - code
+      - google-chrome-stable
+      - gh
+      - terraform
+      - tailscale
+      - cloudflare-warp
+      - anydesk
+      - mongodb-mongosh
+    state: present
+
+- name: Adicionar usuário ao grupo docker
+  ansible.builtin.user:
+    name: "{{ target_user }}"
+    groups: docker
+    append: true
+
+- name: Habilitar e iniciar Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Habilitar tailscaled
+  ansible.builtin.systemd:
+    name: tailscaled
+    enabled: true
+    state: started

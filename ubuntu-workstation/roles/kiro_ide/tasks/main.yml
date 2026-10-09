@@ -1,0 +1,26 @@
+---
+# Kiro IDE via .deb oficial (Ubuntu).
+# No Ubuntu, instalar pelo pacote dispensa o fix de wrapper/symlink que o tarball
+# exigia no Fedora: o apt instala o binário integrado e gerencia o launcher.
+
+- name: Kiro IDE | checar instalação
+  ansible.builtin.command: dpkg-query -W -f='${Version}' kiro
+  register: kiro_ide_installed
+  changed_when: false
+  failed_when: false
+
+- name: Kiro IDE | instalar .deb oficial
+  ansible.builtin.apt:
+    deb: "{{ kiro_ide_deb_url }}"
+    state: present
+  when: kiro_ide_version not in (kiro_ide_installed.stdout | default(''))
+
+- name: Kiro IDE | validar versão instalada
+  ansible.builtin.command: dpkg-query -W -f='${Version}\n' kiro
+  register: kiro_ide_check
+  changed_when: false
+  failed_when: false
+
+- name: Kiro IDE | resultado
+  ansible.builtin.debug:
+    msg: "Kiro IDE instalado: {{ kiro_ide_check.stdout | default('não detectado — conferir manualmente') }}"

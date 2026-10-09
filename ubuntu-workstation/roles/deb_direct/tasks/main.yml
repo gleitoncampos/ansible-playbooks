@@ -1,0 +1,8 @@
+---
+# Apps distribuídos só como .deb avulso (sem repo apt).
+
+- name: Instalar Discord (.deb oficial, última versão)
+  ansible.builtin.apt:
+    deb: "https://discord.com/api/download?platform=linux&format=deb"
+    state: present
+  # O endpoint redireciona para o .deb mais recente; apt resolve dependências.

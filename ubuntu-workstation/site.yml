@@ -1,0 +1,25 @@
+---
+- name: Provisionar workstation Ubuntu 26.04 LTS (replica Fedora)
+  hosts: workstation
+  become: true
+
+  pre_tasks:
+    - name: Falhar se não for Ubuntu
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+        fail_msg: "Este playbook é só para Ubuntu (detectado: {{ ansible_distribution }})."
+
+    - name: Atualizar cache do apt
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+  roles:
+    - role: apt_repos      # repos de terceiros + chaves GPG
+    - role: apt_base       # PPAs (firefox/chromium/obs) + pacotes universe + pacotes dos repos de terceiros
+    - role: deb_direct     # .deb avulso (discord)
+    - role: flatpak        # flathub + apps
+    - role: binaries       # aws, ssm, go, flyway, kiro-cli, claude, zanshin
+    - role: nvidia         # driver proprietário
+    - role: kiro_ide       # tarball + wrapper (fix symlink)

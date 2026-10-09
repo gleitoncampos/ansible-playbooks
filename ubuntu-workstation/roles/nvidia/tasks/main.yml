@@ -1,0 +1,23 @@
+---
+# Driver NVIDIA proprietário para a RTX 4050 Laptop (Ada).
+# Usa o PPA graphics-drivers (mais atual que o repo padrão do Ubuntu).
+
+- name: NVIDIA | PPA graphics-drivers
+  ansible.builtin.apt_repository:
+    repo: ppa:graphics-drivers/ppa
+    state: present
+
+- name: NVIDIA | atualizar cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: NVIDIA | instalar driver proprietário
+  ansible.builtin.apt:
+    name: "nvidia-driver-{{ nvidia_driver_branch }}"
+    state: present
+  notify: Avisar reboot
+
+- name: NVIDIA | utilitários CUDA (nvidia-smi etc.)
+  ansible.builtin.apt:
+    name: "nvidia-utils-{{ nvidia_driver_branch }}"
+    state: present
