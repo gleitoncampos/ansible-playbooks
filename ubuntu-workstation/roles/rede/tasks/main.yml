@@ -1,0 +1,13 @@
+---
+# Cabo e Wi-Fi ligados na mesma sub-rede: com arp_ignore=0 o kernel responde ARP
+# de qualquer IP local por qualquer placa, e o gateway passa a mandar o retorno do
+# cabo pelo rádio (ARP flux). Cada placa responde e anuncia só o próprio IP.
+- name: ARP por interface (evitar ARP flux com cabo + Wi-Fi na mesma rede)
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-arp-multihome.conf
+    reload: true
+  loop:
+    - { name: net.ipv4.conf.all.arp_ignore, value: "1" }
+    - { name: net.ipv4.conf.all.arp_announce, value: "2" }
