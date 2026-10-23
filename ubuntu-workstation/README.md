@@ -68,6 +68,7 @@ ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
 | Binário / tarball / installer | `binaries` | AWS CLI v2, session-manager-plugin, Go, Flyway, Zanshin (pipx), kiro-cli, claude |
 | Driver | `nvidia` | `nvidia-driver-580` + utils (RTX 4050 Laptop) — **exige reboot** |
 | .deb oficial | `kiro_ide` | Kiro IDE (pacote .deb; dispensa wrapper/symlink) |
+| sysctl | `rede` | `arp_ignore=1` + `arp_announce=2` em `/etc/sysctl.d/90-arp-multihome.conf` — cabo e Wi-Fi na mesma rede sem ARP flux |
 
 ## O que fica de FORA (intencional)
 

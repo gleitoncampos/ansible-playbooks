@@ -23,3 +23,4 @@
     - role: binaries       # aws, ssm, go, flyway, kiro-cli, claude, zanshin
     - role: nvidia         # driver proprietário
     - role: kiro_ide       # tarball + wrapper (fix symlink)
+    - role: rede           # sysctl de ARP (cabo + Wi-Fi na mesma rede)
