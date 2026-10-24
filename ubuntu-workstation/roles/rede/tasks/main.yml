@@ -11,3 +11,18 @@
   loop:
     - { name: net.ipv4.conf.all.arp_ignore, value: "1" }
     - { name: net.ipv4.conf.all.arp_announce, value: "2" }
+
+# Wi-Fi com MAC aleatório (stable-ssid, padrão do Fedora) não casa com a reserva
+# DHCP do roteador. "permanent" usa o MAC de fábrica da placa — sem gravar MAC no repo.
+# Arquivo em /etc vem depois de /usr/lib/.../conf.d e tem precedência.
+- name: Wi-Fi com MAC de fábrica (reserva DHCP casar)
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/90-wifi-mac-permanent.conf
+    content: |
+      [connection-90-wifi-mac-permanent]
+      match-device=type:wifi
+      wifi.cloned-mac-address=permanent
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Avisar religar Wi-Fi
