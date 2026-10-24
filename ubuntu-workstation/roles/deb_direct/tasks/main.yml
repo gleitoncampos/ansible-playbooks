@@ -1,11 +1,29 @@
 ---
 # Apps distribuídos só como .deb avulso (sem repo apt).
 
-- name: Instalar Discord (.deb oficial, última versão)
-  ansible.builtin.apt:
-    deb: "https://discord.com/api/download?platform=linux&format=deb"
-    state: present
-  # O endpoint redireciona para o .deb mais recente; apt resolve dependências.
+# Discord: o .deb depende de "libasound2", que no Ubuntu 24.04+ é virtual (fornecido
+# por libasound2t64). O módulo apt (deb:) não resolve dependência virtual e falha;
+# o apt-get resolve. Instala a versão mais recente só se ainda não estiver instalado
+# (atualização depois: o próprio Discord avisa).
+- name: Discord | checar instalação
+  ansible.builtin.command: dpkg-query -W -f='${Status}' discord
+  register: deb_direct_discord_check
+  changed_when: false
+  failed_when: false
+
+- name: Discord | baixar .deb mais recente
+  ansible.builtin.get_url:
+    url: "https://discord.com/api/download?platform=linux&format=deb"
+    dest: /tmp/discord.deb
+    mode: "0644"
+  when: "'install ok installed' not in deb_direct_discord_check.stdout"
+
+- name: Discord | instalar (apt-get resolve libasound2 -> libasound2t64)
+  ansible.builtin.command: apt-get install -y /tmp/discord.deb  # noqa: command-instead-of-module
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: "'install ok installed' not in deb_direct_discord_check.stdout"
+  changed_when: true
 
 - name: Instalar Vibe (transcrição, .deb da release)
   ansible.builtin.apt:
