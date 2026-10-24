@@ -42,23 +42,6 @@
     components: [main]
     architectures: [amd64]
 
-# ---------------- Google Chrome ----------------
-- name: Chrome | chave GPG
-  ansible.builtin.get_url:
-    url: https://dl.google.com/linux/linux_signing_key.pub
-    dest: /etc/apt/keyrings/google-chrome.asc
-    mode: "0644"
-
-- name: Chrome | repositório
-  ansible.builtin.deb822_repository:
-    name: google-chrome
-    types: [deb]
-    uris: https://dl.google.com/linux/chrome/deb
-    signed_by: /etc/apt/keyrings/google-chrome.asc
-    suites: [stable]
-    components: [main]
-    architectures: [amd64]
-
 # ---------------- GitHub CLI ----------------
 - name: GitHub CLI | chave GPG
   ansible.builtin.get_url:
