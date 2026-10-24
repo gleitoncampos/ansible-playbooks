@@ -6,3 +6,19 @@
     deb: "https://discord.com/api/download?platform=linux&format=deb"
     state: present
   # O endpoint redireciona para o .deb mais recente; apt resolve dependências.
+
+- name: Instalar Vibe (transcrição, .deb da release)
+  ansible.builtin.apt:
+    deb: "https://github.com/thewh1teagle/vibe/releases/download/v{{ vibe_version }}/vibe_{{ vibe_version }}_amd64.deb"
+    state: present
+
+# WinBoat sobe o Windows em container Docker e abre os apps por RDP: precisa do FreeRDP 3.
+- name: WinBoat | FreeRDP 3 (cliente RDP usado pelo WinBoat)
+  ansible.builtin.apt:
+    name: freerdp3-x11
+    state: present
+
+- name: Instalar WinBoat (.deb da release)
+  ansible.builtin.apt:
+    deb: "https://github.com/winboat-org/winboat/releases/download/v{{ winboat_version }}/winboat-{{ winboat_version }}-amd64.deb"
+    state: present

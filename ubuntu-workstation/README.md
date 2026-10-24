@@ -62,10 +62,10 @@ ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
 |---|---|---|
 | Repos de terceiros | `apt_repos` + `apt_base` | Docker CE, VS Code, GitHub CLI, Terraform, Tailscale, Cloudflare WARP, AnyDesk, mongosh |
 | PPA (sem snap) | `apt_base` | Firefox, Chromium, OBS Studio |
-| apt universe | `apt_base` | qBittorrent, VLC, LibreOffice, Solaar, git/curl/wget etc. |
-| .deb avulso | `deb_direct` | Discord |
+| apt universe | `apt_base` | qBittorrent, VLC, LibreOffice, Solaar, git/curl/wget etc.; ansible-core, ansible-lint, shellcheck, psql (`postgresql-client`), nodejs/npm, screen |
+| .deb avulso | `deb_direct` | Discord, Vibe, WinBoat (+ `freerdp3-x11`) |
 | Flatpak (Flathub) | `flatpak` | MongoDB Compass, Moonlight, Spotify, Bottles, DBeaver, Gear Lever, Ferdium, Yakuake, Trayscale |
-| Binário / tarball / installer | `binaries` | AWS CLI v2, session-manager-plugin, Go, Flyway, Zanshin (pipx), kiro-cli, claude |
+| Binário / tarball / installer | `binaries` | AWS CLI v2, session-manager-plugin, Go + ferramentas (golangci-lint, gofumpt, gci, fieldalignment em `~/go/bin`), Flyway, Zanshin e camset (pipx), kiro-cli, claude |
 | Driver | `nvidia` | `nvidia-driver-580` + utils (RTX 4050 Laptop) — **exige reboot** |
 | .deb oficial | `kiro_ide` | Kiro IDE (pacote .deb; dispensa wrapper/symlink) |
 | sysctl | `rede` | `arp_ignore=1` + `arp_announce=2` em `/etc/sysctl.d/90-arp-multihome.conf` — cabo e Wi-Fi na mesma rede sem ARP flux; Wi-Fi com MAC de fábrica (`wifi.cloned-mac-address=permanent`, `/etc/NetworkManager/conf.d/90-wifi-mac-permanent.conf`) para casar com a reserva DHCP |
@@ -83,6 +83,7 @@ ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
   ```
 - **Antigravity, Gemini Desktop** — removidos a pedido, não usados mais.
 - **PyCharm, websocat, azure-cli** — removidos a pedido.
+- **azcopy, deno** — fora a pedido (scan de 2026-10-23).
 - **Google Chrome (stable e Canary)** — Chromium (PPA xtradeb) substitui.
 - Stack base do KDE/firmware/kernel — vem com a instalação do Ubuntu KDE/desktop.
 
