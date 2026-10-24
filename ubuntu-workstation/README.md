@@ -60,7 +60,7 @@ ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
 
 | Fonte | Role | Apps |
 |---|---|---|
-| Repos de terceiros | `apt_repos` + `apt_base` | Docker CE, VS Code, Google Chrome, GitHub CLI, Terraform, Tailscale, Cloudflare WARP, AnyDesk, mongosh |
+| Repos de terceiros | `apt_repos` + `apt_base` | Docker CE, VS Code, GitHub CLI, Terraform, Tailscale, Cloudflare WARP, AnyDesk, mongosh |
 | PPA (sem snap) | `apt_base` | Firefox, Chromium, OBS Studio |
 | apt universe | `apt_base` | qBittorrent, VLC, LibreOffice, Solaar, git/curl/wget etc. |
 | .deb avulso | `deb_direct` | Discord |
@@ -83,7 +83,7 @@ ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
   ```
 - **Antigravity, Gemini Desktop** — removidos a pedido, não usados mais.
 - **PyCharm, websocat, azure-cli** — removidos a pedido.
-- **Chrome Canary** — não tem build Linux .deb; só Chrome stable.
+- **Google Chrome (stable e Canary)** — Chromium (PPA xtradeb) substitui.
 - Stack base do KDE/firmware/kernel — vem com a instalação do Ubuntu KDE/desktop.
 
 ## Pós-instalação (manual)
