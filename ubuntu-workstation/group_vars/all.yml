@@ -4,8 +4,9 @@ target_user: nuvidio
 target_home: "/home/{{ target_user }}"
 
 # Versões pinadas de binários baixados direto (atualizar quando quiser bump).
-# URLs validadas em 2026-10-09 (HTTP 200/302).
-go_version: "1.27.2"
+# URLs validadas em 2026-10-09 (HTTP 200/302); Go revalidado em 2026-10-23.
+# Go fica na linha 1.26.x (mesma série do Fedora atual); bump só de patch.
+go_version: "1.26.10"
 flyway_version: "11.8.2"
 
 # Base do download do Flyway CLI (maven central). O artefato -linux-x64.tar.gz
