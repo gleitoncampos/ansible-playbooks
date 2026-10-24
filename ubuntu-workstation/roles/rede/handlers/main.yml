@@ -1,0 +1,4 @@
+---
+- name: Avisar religar Wi-Fi
+  ansible.builtin.debug:
+    msg: "MAC do Wi-Fi fixado. Vale na próxima conexão: 'nmcli general reload conf' e religar o Wi-Fi (ou reboot)."
