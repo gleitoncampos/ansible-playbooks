@@ -61,6 +61,25 @@
     mode: "0644"
     content: 'export PATH=$PATH:/usr/local/go/bin'
 
+# Instala no ~/go/bin do usuário; "creates" pula se o binário já existe (bump: apagar e rodar de novo).
+- name: Go | ferramentas (go install)
+  ansible.builtin.command:
+    cmd: "/usr/local/go/bin/go install {{ item.pkg }}@{{ item.version }}"
+    creates: "{{ target_home }}/go/bin/{{ item.name }}"
+  become: true
+  become_user: "{{ target_user }}"
+  environment:
+    GOTOOLCHAIN: local   # compila com o Go pinado; falha em vez de baixar outro toolchain
+  loop: "{{ go_tools }}"
+  loop_control:
+    label: "{{ item.name }}@{{ item.version }}"
+
+- name: Go | ~/go/bin no PATH
+  ansible.builtin.copy:
+    dest: /etc/profile.d/go-user-bin.sh
+    mode: "0644"
+    content: 'export PATH=$PATH:$HOME/go/bin'
+
 # ---------------- Flyway ----------------
 - name: Flyway | checar
   ansible.builtin.stat:
@@ -91,6 +110,26 @@
 - name: Zanshin CLI (via pipx)
   community.general.pipx:
     name: zanshincli
+    state: present
+  become: true
+  become_user: "{{ target_user }}"
+
+# ---------------- pipx: camset ----------------
+# GUI GTK de controle da webcam (v4l2). PyGObject vem do apt (compilar via pip exige
+# cabeçalhos); por isso o venv do pipx enxerga o site-packages do sistema.
+- name: Camset | dependências do sistema
+  ansible.builtin.apt:
+    name:
+      - python3-gi
+      - gir1.2-gtk-3.0
+      - v4l-utils
+    state: present
+
+- name: Camset (via pipx)
+  community.general.pipx:
+    name: camset
+    source: "camset=={{ camset_version }}"
+    system_site_packages: true
     state: present
   become: true
   become_user: "{{ target_user }}"

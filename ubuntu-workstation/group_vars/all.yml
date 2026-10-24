@@ -9,6 +9,20 @@ target_home: "/home/{{ target_user }}"
 go_version: "1.26.10"
 flyway_version: "11.8.2"
 
+# .deb de releases do GitHub (mesma versão do Fedora em 2026-10-23).
+vibe_version: "3.2.2"
+winboat_version: "0.9.2"
+
+# camset (ajuste de webcam), via pipx com site-packages do sistema (usa o python3-gi do apt).
+camset_version: "0.0.21"
+
+# Ferramentas Go instaladas com `go install` no ~/go/bin do usuário (versões do Fedora em 2026-10-23).
+go_tools:
+  - { name: golangci-lint, pkg: "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", version: "v2.12.2" }
+  - { name: gofumpt, pkg: "mvdan.cc/gofumpt", version: "v0.12.0" }
+  - { name: gci, pkg: "github.com/daixiang0/gci", version: "v0.14.0" }
+  - { name: fieldalignment, pkg: "golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment", version: "v0.52.0" }
+
 # Base do download do Flyway CLI (maven central). O artefato -linux-x64.tar.gz
 # existe no maven central até ~11.8.2; versões mais novas podem não publicar lá.
 flyway_base_url: "https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline"
@@ -52,3 +66,11 @@ apt_base_packages:
   - python3-pip
   - pipx
   - obs-studio
+  # Ferramentas de trabalho (scan do Fedora em 2026-10-23)
+  - ansible-core
+  - ansible-lint
+  - shellcheck
+  - postgresql-client   # psql
+  - nodejs
+  - npm
+  - screen
