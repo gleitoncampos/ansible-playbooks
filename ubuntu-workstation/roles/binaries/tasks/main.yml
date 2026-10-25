@@ -114,26 +114,6 @@
   become: true
   become_user: "{{ target_user }}"
 
-# ---------------- pipx: camset ----------------
-# GUI GTK de controle da webcam (v4l2). PyGObject vem do apt (compilar via pip exige
-# cabeçalhos); por isso o venv do pipx enxerga o site-packages do sistema.
-- name: Camset | dependências do sistema
-  ansible.builtin.apt:
-    name:
-      - python3-gi
-      - gir1.2-gtk-3.0
-      - v4l-utils
-    state: present
-
-- name: Camset (via pipx)
-  community.general.pipx:
-    name: camset
-    source: "camset=={{ camset_version }}"
-    system_site_packages: true
-    state: present
-  become: true
-  become_user: "{{ target_user }}"
-
 # ---------------- Kiro CLI ----------------
 # Installer próprio (não é apt). Roda como usuário, instala em ~/.local/bin.
 - name: Kiro CLI | checar
