@@ -3,24 +3,61 @@
   hosts: workstation
   become: true
 
+  vars:
+    ubuntu_release: "{{ ansible_facts['distribution_release'] }}"
+
   pre_tasks:
     - name: Falhar se não for Ubuntu
       ansible.builtin.assert:
         that:
-          - ansible_distribution == "Ubuntu"
-        fail_msg: "Este playbook é só para Ubuntu (detectado: {{ ansible_distribution }})."
+          - ansible_facts['distribution'] == "Ubuntu"
+        fail_msg: "Este playbook é só para Ubuntu (detectado: {{ ansible_facts['distribution'] }})."
 
-    - name: Atualizar cache do apt
-      ansible.builtin.apt:
-        update_cache: true
-        cache_valid_time: 3600
+    - name: Remover arquivos antigos dos PPAs
+      ansible.builtin.file:
+        path: "/etc/apt/sources.list.d/{{ item }}"
+        state: absent
+      loop:
+        - launchpadcontent_net.list
+        - launchpadcontent_net.sources
+        - mozillateam-ppa.list
+        - obsproject-obs-studio.list
+        - qbittorrent-team-ubuntu-qbittorrent-stable-resolute.list
+        - qbittorrent-team-qbittorrent-stable.list
+        - mozillateam-ppa.sources
+        - obsproject-obs-studio.sources
+        - ppas-workstation.list
+        - ppas-workstation.sources
+        - mongodb-org.list
+        - mongodb-org-8.0.list
+        - mongodb-org-8.0.sources
+        - mongodb-org-9.0.list
+        - mongodb-org-9.0.sources
+
+    - name: Configurar repositórios oficiais do Ubuntu
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/ubuntu.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: https://archive.ubuntu.com/ubuntu
+          Suites: {{ ubuntu_release }} {{ ubuntu_release }}-updates {{ ubuntu_release }}-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: https://security.ubuntu.com/ubuntu
+          Suites: {{ ubuntu_release }}-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 
   roles:
-    - role: apt_repos      # repos de terceiros + chaves GPG
-    - role: apt_base       # PPAs (firefox/chromium/obs) + pacotes universe + pacotes dos repos de terceiros
-    - role: deb_direct     # .deb avulso (discord)
-    - role: flatpak        # flathub + apps
-    - role: binaries       # aws, ssm, go, flyway, kiro-cli, claude, zanshin
-    - role: nvidia         # driver proprietário
-    - role: kiro_ide       # tarball + wrapper (fix symlink)
-    - role: rede           # sysctl de ARP (cabo + Wi-Fi na mesma rede)
+    - role: apt_repos
+    - role: apt_base
+    - role: deb_direct
+    - role: flatpak
+    - role: desktop
+    - role: binaries
+    - role: nvidia
+    - role: kiro_ide
+    - role: rede

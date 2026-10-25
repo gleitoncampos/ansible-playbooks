@@ -1,0 +1,54 @@
+---
+# Ajustes de desktop KDE Plasma: Num Lock ligado no login e Yakuake no autostart.
+# Roda depois da role flatpak (o autostart parte do .desktop exportado pelo flatpak do Yakuake).
+
+# ---------------- Num Lock ----------------
+# Tela de login (SDDM): drop-in próprio, sem tocar nos 10-wayland.conf / 20-kubuntu.conf.
+- name: Num Lock | diretório de configuração do SDDM
+  ansible.builtin.file:
+    path: /etc/sddm.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Num Lock | ligado na tela de login (SDDM)
+  ansible.builtin.copy:
+    dest: /etc/sddm.conf.d/30-numlock.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [General]
+      Numlock=on
+
+# Sessão Plasma: NumLock=0 é "ligado" (1 = desligado, 2 = não mexer).
+- name: Num Lock | ligado na sessão Plasma
+  community.general.ini_file:
+    path: "{{ target_home }}/.config/kcminputrc"
+    section: Keyboard
+    option: NumLock
+    value: "0"
+    no_extra_spaces: true
+    mode: "0644"
+  become: true
+  become_user: "{{ target_user }}"
+
+# ---------------- Yakuake no autostart ----------------
+# Copia o .desktop que o próprio flatpak exporta: o Exec (flatpak run ...) acompanha o flatpak.
+- name: Yakuake | diretório de autostart
+  ansible.builtin.file:
+    path: "{{ target_home }}/.config/autostart"
+    state: directory
+    mode: "0755"
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Yakuake | autostart
+  ansible.builtin.copy:
+    src: /var/lib/flatpak/exports/share/applications/org.kde.yakuake.desktop
+    dest: "{{ target_home }}/.config/autostart/org.kde.yakuake.desktop"
+    remote_src: true
+    mode: "0644"
+  become: true
+  become_user: "{{ target_user }}"

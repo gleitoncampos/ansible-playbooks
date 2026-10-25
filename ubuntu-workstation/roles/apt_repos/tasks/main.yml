@@ -1,18 +1,33 @@
 ---
-# Chaves GPG e repositórios de terceiros (equivalentes aos .repo do Fedora).
-# Usa deb822_repository (idempotente, formato moderno do apt).
+# Chaves GPG e repositórios de terceiros.
+# Ubuntu 26.04 LTS (Resolute).
+
+# gpg é usado na conversão das chaves (WARP, MongoDB) e na verificação de fingerprint (apt_base).
+- name: Instalar gnupg
+  ansible.builtin.apt:
+    name: gnupg
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
 
 - name: Garantir diretório de keyrings
   ansible.builtin.file:
     path: /etc/apt/keyrings
     state: directory
+    owner: root
+    group: root
     mode: "0755"
 
-# ---------------- Docker ----------------
+# -------------------------------------------------------------------
+# Docker
+# -------------------------------------------------------------------
+
 - name: Docker | chave GPG
   ansible.builtin.get_url:
     url: https://download.docker.com/linux/ubuntu/gpg
     dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
     mode: "0644"
 
 - name: Docker | repositório
@@ -21,15 +36,21 @@
     types: [deb]
     uris: https://download.docker.com/linux/ubuntu
     signed_by: /etc/apt/keyrings/docker.asc
-    suites: ["{{ ansible_distribution_release }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
     components: [stable]
     architectures: [amd64]
+    state: present
 
-# ---------------- VS Code (Microsoft) ----------------
+# -------------------------------------------------------------------
+# Visual Studio Code
+# -------------------------------------------------------------------
+
 - name: VS Code | chave GPG
   ansible.builtin.get_url:
     url: https://packages.microsoft.com/keys/microsoft.asc
     dest: /etc/apt/keyrings/microsoft.asc
+    owner: root
+    group: root
     mode: "0644"
 
 - name: VS Code | repositório
@@ -41,12 +62,18 @@
     suites: [stable]
     components: [main]
     architectures: [amd64]
+    state: present
 
-# ---------------- GitHub CLI ----------------
+# -------------------------------------------------------------------
+# GitHub CLI
+# -------------------------------------------------------------------
+
 - name: GitHub CLI | chave GPG
   ansible.builtin.get_url:
     url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
     dest: /etc/apt/keyrings/githubcli.gpg
+    owner: root
+    group: root
     mode: "0644"
 
 - name: GitHub CLI | repositório
@@ -58,12 +85,18 @@
     suites: [stable]
     components: [main]
     architectures: [amd64]
+    state: present
 
-# ---------------- HashiCorp (Terraform) ----------------
+# -------------------------------------------------------------------
+# HashiCorp
+# -------------------------------------------------------------------
+
 - name: HashiCorp | chave GPG
   ansible.builtin.get_url:
     url: https://apt.releases.hashicorp.com/gpg
     dest: /etc/apt/keyrings/hashicorp.asc
+    owner: root
+    group: root
     mode: "0644"
 
 - name: HashiCorp | repositório
@@ -72,49 +105,93 @@
     types: [deb]
     uris: https://apt.releases.hashicorp.com
     signed_by: /etc/apt/keyrings/hashicorp.asc
-    suites: ["{{ ansible_distribution_release }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
     components: [main]
     architectures: [amd64]
+    state: present
 
-# ---------------- Tailscale ----------------
+# -------------------------------------------------------------------
+# Tailscale
+# -------------------------------------------------------------------
+
 - name: Tailscale | chave GPG
   ansible.builtin.get_url:
-    url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg"
+    url: "https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
     dest: /etc/apt/keyrings/tailscale.gpg
+    owner: root
+    group: root
     mode: "0644"
 
 - name: Tailscale | repositório
   ansible.builtin.deb822_repository:
     name: tailscale
     types: [deb]
-    uris: "https://pkgs.tailscale.com/stable/ubuntu"
+    uris: https://pkgs.tailscale.com/stable/ubuntu
     signed_by: /etc/apt/keyrings/tailscale.gpg
-    suites: ["{{ ansible_distribution_release }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
     components: [main]
     architectures: [amd64]
+    state: present
 
-# ---------------- Cloudflare WARP ----------------
-- name: Cloudflare WARP | chave GPG
+# -------------------------------------------------------------------
+# Cloudflare WARP
+# -------------------------------------------------------------------
+
+- name: Cloudflare WARP | remover chave antiga em formato incorreto
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/cloudflare-warp.gpg
+    state: absent
+
+- name: Cloudflare WARP | baixar chave pública oficial
   ansible.builtin.get_url:
     url: https://pkg.cloudflareclient.com/pubkey.gpg
     dest: /etc/apt/keyrings/cloudflare-warp.asc
+    owner: root
+    group: root
     mode: "0644"
+    force: true
+  register: apt_repos_warp_key
 
-- name: Cloudflare WARP | repositório
+- name: Cloudflare WARP | checar chave convertida
+  ansible.builtin.stat:
+    path: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+  register: apt_repos_warp_gpg
+
+# Só converte se a chave baixada mudou ou a convertida não existe.
+- name: Cloudflare WARP | converter chave para formato GPG
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --batch
+      - --yes
+      - --dearmor
+      - --output
+      - /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+      - /etc/apt/keyrings/cloudflare-warp.asc
+  when: apt_repos_warp_key.changed or not apt_repos_warp_gpg.stat.exists
+  changed_when: true
+
+- name: Cloudflare WARP | configurar repositório
   ansible.builtin.deb822_repository:
     name: cloudflare-warp
     types: [deb]
     uris: https://pkg.cloudflareclient.com
-    signed_by: /etc/apt/keyrings/cloudflare-warp.asc
-    suites: ["{{ ansible_distribution_release }}"]
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
     components: [main]
     architectures: [amd64]
+    signed_by: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+    state: present
+    enabled: true
+# -------------------------------------------------------------------
+# AnyDesk
+# -------------------------------------------------------------------
 
-# ---------------- AnyDesk ----------------
 - name: AnyDesk | chave GPG
   ansible.builtin.get_url:
     url: https://keys.anydesk.com/repos/DEB-GPG-KEY
     dest: /etc/apt/keyrings/anydesk.asc
+    owner: root
+    group: root
     mode: "0644"
 
 - name: AnyDesk | repositório
@@ -126,24 +203,78 @@
     suites: [all]
     components: [main]
     architectures: [amd64]
+    state: present
 
-# ---------------- MongoDB (mongosh + tools) ----------------
-- name: MongoDB | chave GPG
+# -------------------------------------------------------------------
+# MongoDB Community 9.0
+# -------------------------------------------------------------------
+
+- name: MongoDB | remover definições antigas do repositório
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/mongodb-org-8.0.list
+    - /etc/apt/sources.list.d/mongodb-org-8.0.sources
+    - /etc/apt/sources.list.d/mongodb-org.list
+
+- name: MongoDB | baixar chave pública oficial
   ansible.builtin.get_url:
-    url: https://pgp.mongodb.com/server-8.0.asc
-    dest: /etc/apt/keyrings/mongodb.asc
+    url: https://pgp.mongodb.com/server-9.asc
+    dest: /etc/apt/keyrings/mongodb-server-9.asc
+    owner: root
+    group: root
     mode: "0644"
+    force: true
+  register: apt_repos_mongo_key
 
-- name: MongoDB | repositório
+- name: MongoDB | checar chave convertida
+  ansible.builtin.stat:
+    path: /usr/share/keyrings/mongodb-server-9.gpg
+  register: apt_repos_mongo_gpg
+
+# Só converte se a chave baixada mudou ou a convertida não existe.
+- name: MongoDB | converter chave para formato GPG
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --batch
+      - --yes
+      - --dearmor
+      - --output
+      - /usr/share/keyrings/mongodb-server-9.gpg
+      - /etc/apt/keyrings/mongodb-server-9.asc
+  when: apt_repos_mongo_key.changed or not apt_repos_mongo_gpg.stat.exists
+  changed_when: true
+
+- name: MongoDB | garantir diretório de keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: MongoDB | configurar repositório 9.0
   ansible.builtin.deb822_repository:
     name: mongodb-org
     types: [deb]
-    uris: "https://repo.mongodb.org/apt/ubuntu"
-    signed_by: /etc/apt/keyrings/mongodb.asc
-    suites: ["{{ ansible_distribution_release }}/mongodb-org/8.0"]
+    uris: https://repo.mongodb.org/apt/ubuntu
+    suites:
+      - "{{ ansible_facts['distribution_release'] }}/mongodb-org/9.0"
     components: [multiverse]
     architectures: [amd64]
+    signed_by: /usr/share/keyrings/mongodb-server-9.gpg
+    state: present
+    enabled: true
 
-- name: Atualizar cache após adicionar repos
+# -------------------------------------------------------------------
+# Atualizar índices APT
+# -------------------------------------------------------------------
+
+- name: Atualizar cache após adicionar repositórios
   ansible.builtin.apt:
     update_cache: true
+    cache_valid_time: 0
+  # Atualizar o índice não muda configuração.
+  changed_when: false
