@@ -1,23 +1,43 @@
 ---
-# Driver NVIDIA proprietário para a RTX 4050 Laptop (Ada).
-# Usa o PPA graphics-drivers (mais atual que o repo padrão do Ubuntu).
+# NVIDIA | instalar o driver recomendado pelo Ubuntu.
+# GPU detectada: GeForce RTX 4050 Max-Q Laptop.
 
-- name: NVIDIA | PPA graphics-drivers
-  ansible.builtin.apt_repository:
-    repo: ppa:graphics-drivers/ppa
-    state: present
+- name: NVIDIA | remover PPA externo de drivers gráficos
+  ansible.builtin.deb822_repository:
+    name: graphics-drivers-ppa
+    state: absent
 
-- name: NVIDIA | atualizar cache
-  ansible.builtin.apt:
-    update_cache: true
+- name: NVIDIA | listar pacotes instalados
+  ansible.builtin.package_facts:
+    manager: apt
 
-- name: NVIDIA | instalar driver proprietário
-  ansible.builtin.apt:
-    name: "nvidia-driver-{{ nvidia_driver_branch }}"
-    state: present
+- name: NVIDIA | verificar ferramenta ubuntu-drivers
+  ansible.builtin.command:
+    argv:
+      - ubuntu-drivers
+      - devices
+  register: nvidia_devices
+  changed_when: false
+  when: ansible_facts.packages | select('match', '^nvidia-driver-[0-9]') | list | length == 0
+
+- name: NVIDIA | exibir drivers recomendados
+  ansible.builtin.debug:
+    var: nvidia_devices.stdout_lines
+  when: nvidia_devices is not skipped
+
+# Idempotência: só roda se não há nenhum pacote nvidia-driver-<série> instalado.
+# changed = a saída do ubuntu-drivers não é "No drivers found" (sem GPU/driver, nada é instalado).
+- name: NVIDIA | instalar driver recomendado pelo Ubuntu
+  ansible.builtin.command:
+    argv:
+      - ubuntu-drivers
+      - install
+      - --recommended
+  register: nvidia_install_result
+  when: ansible_facts.packages | select('match', '^nvidia-driver-[0-9]') | list | length == 0
+  changed_when: "'No drivers found' not in nvidia_install_result.stdout"
   notify: Avisar reboot
 
-- name: NVIDIA | utilitários CUDA (nvidia-smi etc.)
-  ansible.builtin.apt:
-    name: "nvidia-utils-{{ nvidia_driver_branch }}"
-    state: present
+- name: NVIDIA | exibir resultado da instalação
+  ansible.builtin.debug:
+    msg: "{{ nvidia_install_result.stdout_lines | default([]) }}"

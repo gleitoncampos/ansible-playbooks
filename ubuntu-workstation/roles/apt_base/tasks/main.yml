@@ -1,54 +1,149 @@
 ---
-# PPAs (para evitar snap) + instalação de pacotes do universe e dos repos de terceiros.
+# Repositórios de navegadores/torrent (sem snap) + instalação dos pacotes do apt
+# e dos apps vindos dos repos de terceiros (role apt_repos, que roda antes e
+# instala o gnupg usado na verificação das chaves abaixo).
+#
+# Firefox: repositório oficial da Mozilla.
+# Chromium: PPA xtradeb. qBittorrent: PPA qbittorrent-team/qbittorrent-stable.
+# PPAs em deb822 + chave .asc em /etc/apt/keyrings (fingerprint conferida com a
+# publicada pelo Launchpad: signing_key_fingerprint da API de cada archive).
 
-- name: Garantir software-properties-common (fornece add-apt-repository)
-  ansible.builtin.apt:
-    name: software-properties-common
+- name: Garantir diretório de keyrings
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# force=false (padrão): só baixa se o arquivo não existe; chave existente não é regravada.
+- name: Baixar chaves públicas dos repositórios
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/etc/apt/keyrings/{{ item.file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: &apt_base_keys
+    - file: packages.mozilla.org.asc
+      url: https://packages.mozilla.org/apt/repo-signing-key.gpg
+      fingerprint: 35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3
+    - file: qbittorrent-stable.asc
+      url: "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x401E8827DA4E93E44C7D01E6D35164147CA69FC4"
+      fingerprint: 401E8827DA4E93E44C7D01E6D35164147CA69FC4
+    - file: xtradeb-apps.asc
+      url: "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x5301FA4FD93244FBC6F6149982BB6851C64F6880"
+      fingerprint: 5301FA4FD93244FBC6F6149982BB6851C64F6880
+  loop_control:
+    label: "{{ item.file }}"
+
+- name: Ler fingerprint das chaves
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --show-keys
+      - --with-colons
+      - "/etc/apt/keyrings/{{ item.file }}"
+  loop: *apt_base_keys
+  loop_control:
+    label: "{{ item.file }}"
+  register: apt_base_key_info
+  changed_when: false
+
+- name: Validar fingerprint das chaves
+  ansible.builtin.assert:
+    that:
+      - ("fpr:::::::::" ~ item.item.fingerprint ~ ":") in item.stdout_lines
+    fail_msg: "A chave {{ item.item.file }} não corresponde ao fingerprint esperado."
+    quiet: true
+  loop: "{{ apt_base_key_info.results }}"
+  loop_control:
+    label: "{{ item.item.file }}"
+
+- name: Mozilla | repositório
+  ansible.builtin.deb822_repository:
+    name: mozilla
+    types: [deb]
+    uris: https://packages.mozilla.org/apt
+    signed_by: /etc/apt/keyrings/packages.mozilla.org.asc
+    suites: [mozilla]
+    components: [main]
     state: present
+  register: apt_base_repo_mozilla
 
-# ---- Firefox via PPA mozillateam (evita o snap padrão do Ubuntu) ----
-- name: Mozilla Team PPA (Firefox .deb)
-  ansible.builtin.apt_repository:
-    repo: ppa:mozillateam/ppa
-    state: present
-
-- name: Pinar Firefox para o PPA (prioridade sobre o pacote snap-transicional)
+# Mozilla com prioridade sobre tudo; firefox do Ubuntu (transicional para snap) barrado.
+- name: Mozilla | pin do Firefox
   ansible.builtin.copy:
     dest: /etc/apt/preferences.d/mozilla-firefox
+    owner: root
+    group: root
     mode: "0644"
     content: |
-      Package: firefox*
-      Pin: release o=LP-PPA-mozillateam
-      Pin-Priority: 1001
+      Package: *
+      Pin: origin packages.mozilla.org
+      Pin-Priority: 1000
 
-# ---- Chromium via PPA xtradeb (evita o snap-transicional do Ubuntu) ----
-- name: Xtradeb PPA (Chromium .deb)
-  ansible.builtin.apt_repository:
-    repo: ppa:xtradeb/apps
+      Package: firefox
+      Pin: release o=Ubuntu
+      Pin-Priority: -1
+
+- name: Qbittorrent | repositório (PPA)
+  ansible.builtin.deb822_repository:
+    name: qbittorrent-stable
+    types: [deb]
+    uris: https://ppa.launchpadcontent.net/qbittorrent-team/qbittorrent-stable/ubuntu
+    signed_by: /etc/apt/keyrings/qbittorrent-stable.asc
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [main]
     state: present
+  register: apt_base_repo_qbittorrent
 
-# ---- OBS Studio via PPA oficial ----
-- name: OBS Studio PPA
-  ansible.builtin.apt_repository:
-    repo: ppa:obsproject/obs-studio
+- name: Xtradeb | repositório (PPA, Chromium)
+  ansible.builtin.deb822_repository:
+    name: xtradeb-apps
+    types: [deb]
+    uris: https://ppa.launchpadcontent.net/xtradeb/apps/ubuntu
+    signed_by: /etc/apt/keyrings/xtradeb-apps.asc
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [main]
     state: present
+  register: apt_base_repo_xtradeb
 
-- name: Atualizar cache após PPAs
+# Só o Chromium vem do PPA; o resto do PPA fica abaixo do repositório do Ubuntu (500).
+- name: Xtradeb | pin do Chromium
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/xtradeb-apps
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      Package: *
+      Pin: release o=LP-PPA-xtradeb-apps
+      Pin-Priority: 100
+
+      Package: chromium*
+      Pin: release o=LP-PPA-xtradeb-apps
+      Pin-Priority: 700
+
+# Só atualiza se algum repositório acima mudou (senão quebraria a idempotência).
+- name: Atualizar cache após repositórios do apt_base
   ansible.builtin.apt:
     update_cache: true
+  when: >-
+    apt_base_repo_mozilla.changed or apt_base_repo_qbittorrent.changed
+    or apt_base_repo_xtradeb.changed
 
-# ---- Pacotes base (universe) ----
 - name: Instalar pacotes base do apt
   ansible.builtin.apt:
     name: "{{ apt_base_packages }}"
     state: present
 
-- name: Instalar Firefox (do PPA mozillateam)
+- name: Instalar Firefox (repositório Mozilla)
   ansible.builtin.apt:
     name: firefox
     state: present
 
-- name: Instalar Chromium (do PPA xtradeb)
+- name: Instalar Chromium (PPA xtradeb)
   ansible.builtin.apt:
     name: chromium
     state: present
