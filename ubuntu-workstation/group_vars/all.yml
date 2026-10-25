@@ -71,3 +71,4 @@ apt_base_packages:
   - screen
   - cifs-utils
   - libtss2-rc0t64
+  - okular
