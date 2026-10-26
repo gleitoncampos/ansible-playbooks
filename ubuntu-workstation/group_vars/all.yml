@@ -72,3 +72,4 @@ apt_base_packages:
   - cifs-utils
   - libtss2-rc0t64
   - okular
+  - openfortivpn
