@@ -1,0 +1,31 @@
+---
+# Os três passos respondem ao mesmo notify e rodam nesta ordem. O generator só
+# cria dev-zram0.swap no daemon-reload. Reiniciar o setup recria o device com o
+# tamanho novo (e derruba o swap que depende dele); iniciar o swap cobre a 1ª
+# vez, em que nada estava ativo.
+- name: Recarregar systemd para o zram-generator
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: Ativar zram
+
+- name: Recriar device zram
+  ansible.builtin.systemd_service:
+    name: systemd-zram-setup@zram0.service
+    state: restarted
+  listen: Ativar zram
+
+- name: Ativar swap em zram
+  ansible.builtin.systemd_service:
+    name: dev-zram0.swap
+    state: started
+  listen: Ativar zram
+
+# Handlers rodam na ordem de definição, então este fica por último: não se mistura
+# com os três de "Ativar zram". Na 1ª instalação o oomd sobe antes de o dbus-daemon
+# carregar a política org.freedesktop.oom1.conf (instalada pelo mesmo pacote) e
+# fica sem dono do nome org.freedesktop.oom1: o oomctl dá timeout até um restart
+# do serviço (ou reboot). Só dispara quando o apt instala/atualiza o pacote.
+- name: Reiniciar systemd-oomd
+  ansible.builtin.systemd_service:
+    name: systemd-oomd.service
+    state: restarted
