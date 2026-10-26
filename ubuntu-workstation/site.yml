@@ -61,3 +61,4 @@
     - role: nvidia
     - role: kiro_ide
     - role: rede
+    - role: memoria
