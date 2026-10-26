@@ -69,6 +69,7 @@ ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
 | Driver | `nvidia` | `nvidia-driver-580` + utils (RTX 4050 Laptop) — **exige reboot** |
 | .deb oficial | `kiro_ide` | Kiro IDE (pacote .deb; dispensa wrapper/symlink) |
 | sysctl | `rede` | `arp_ignore=1` + `arp_announce=2` em `/etc/sysctl.d/90-arp-multihome.conf` — cabo e Wi-Fi na mesma rede sem ARP flux; Wi-Fi com MAC de fábrica (`wifi.cloned-mac-address=permanent`, `/etc/NetworkManager/conf.d/90-wifi-mac-permanent.conf`) para casar com a reserva DHCP |
+| zram + oomd | `memoria` | `systemd-zram-generator` (zram 20 GiB zstd, prio 100), `systemd-oomd`, `vm.swappiness=180` e `vm.page-cluster=0` em `/etc/sysctl.d/90-zram.conf` |
 
 ## O que fica de FORA (intencional)
 

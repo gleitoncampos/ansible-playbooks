@@ -1,0 +1,54 @@
+---
+# Estação com 15 GiB congelava por falta de RAM: swapfile de 512M enchia e nada
+# matava processo antes do travamento. zram (swap comprimido em RAM) amortece o
+# pico e o systemd-oomd mata o cgroup que estoura antes de congelar o desktop.
+# O /swap/swapfile do instalador (fstab, prioridade -1) fica como fallback e não
+# é tocado aqui.
+- name: Instalar zram-generator e systemd-oomd
+  ansible.builtin.apt:
+    name:
+      - systemd-zram-generator
+      - systemd-oomd
+    state: present
+  notify: Reiniciar systemd-oomd
+
+# zram-size em MiB, valor fixo (20480 > RAM de propósito: o device só ocupa RAM real
+# conforme enche). Dimensionado pelo pior caso de compressão, 2:1 com zstd: 20 GiB
+# cheios ocupam ~10 GiB de RAM física, sobrando ~5 GiB para o resto, e o oomd age
+# antes disso. swap-priority 100 fica acima do swapfile (-1), que só entra quando o
+# zram esgota. O /etc tem precedência sobre o /usr/lib/systemd/zram-generator.conf
+# do pacote (que só declara [zram0] vazio).
+- name: Configurar swap em zram
+  ansible.builtin.copy:
+    dest: /etc/systemd/zram-generator.conf
+    content: |
+      [zram0]
+      zram-size = 20480
+      compression-algorithm = zstd
+      swap-priority = 100
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Ativar zram
+
+# Com swap em RAM comprimida, swappiness alto é o certo (trocar página é barato,
+# bem mais que descartar cache de arquivo). page-cluster=0 desliga o readahead de
+# swap: em zram não há latência de disco para amortizar, e ler 8 páginas por vez
+# só desperdiça CPU.
+- name: Ajustar sysctl de memória para zram
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-zram.conf
+    reload: true
+  loop:
+    - { name: vm.swappiness, value: "180" }
+    - { name: vm.page-cluster, value: "0" }
+
+# O pacote Ubuntu já traz drop-ins que ligam a gestão (ManagedOOMMemoryPressure=kill
+# em user@.service, ManagedOOMSwap=auto em -.slice): só falta o serviço rodando.
+- name: Habilitar e iniciar systemd-oomd
+  ansible.builtin.systemd_service:
+    name: systemd-oomd.service
+    enabled: true
+    state: started
