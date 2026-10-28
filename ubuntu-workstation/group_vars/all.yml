@@ -73,3 +73,5 @@ apt_base_packages:
   - libtss2-rc0t64
   - okular
   - openfortivpn
+  - wl-clipboard   # wl-copy/wl-paste (sessão Wayland)
+  - xclip          # apps XWayland/X11
