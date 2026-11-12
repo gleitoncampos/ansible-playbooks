@@ -52,3 +52,143 @@
     mode: "0644"
   become: true
   become_user: "{{ target_user }}"
+
+# ---------------- Orca (AppImage, integrado e gerenciado pelo Gear Lever) ----------------
+# Instala só se ausente: versão e sha256 de group_vars valem apenas no primeiro download;
+# depois o Gear Lever atualiza. O --integrate COPIA para ~/AppImages/orca.appimage (nome vem do
+# Name do .desktop) e apaga o original quando a opção move-appimage-on-integration está ligada
+# (padrão). A flag --update-url aparece no --help do --integrate, mas o código não a lê: a fonte
+# de atualização é gravada à parte, com --set-update-source (--manager recebe o nome da classe).
+# Sem display. O integrate chama `flatpak-spawn --host` (update-desktop-database), que precisa do
+# D-Bus de sessão do usuário: por isso XDG_RUNTIME_DIR e DBUS_SESSION_BUS_ADDRESS explícitos.
+- name: Orca | uid do usuário alvo
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ target_user }}"
+
+- name: Orca | checar instalação
+  ansible.builtin.stat:
+    path: "{{ target_home }}/AppImages/orca.appimage"
+  register: desktop_orca_stat
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Orca | baixar, integrar e configurar atualização
+  when: not desktop_orca_stat.stat.exists
+  become: true
+  become_user: "{{ target_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][target_user][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts['getent_passwd'][target_user][1] }}/bus"
+  block:
+    - name: Orca | diretório temporário do download
+      ansible.builtin.file:
+        path: "{{ target_home }}/.cache/orca-instalacao"
+        state: directory
+        mode: "0700"
+
+    - name: Orca | baixar AppImage (sha256 pinado)
+      ansible.builtin.get_url:
+        url: "https://github.com/stablyai/orca/releases/download/v{{ orca_version }}/orca-linux.AppImage"
+        dest: "{{ target_home }}/.cache/orca-instalacao/orca-linux.AppImage"
+        checksum: "sha256:{{ orca_sha256 }}"
+        mode: "0755"
+
+    - name: Orca | integrar no Gear Lever
+      ansible.builtin.command:
+        argv:
+          - flatpak
+          - run
+          - it.mijorus.gearlever
+          - --integrate
+          - "{{ target_home }}/.cache/orca-instalacao/orca-linux.AppImage"
+          - -y
+        creates: "{{ target_home }}/AppImages/orca.appimage"
+      register: desktop_orca_integrar
+
+    # A config é indexada pelo caminho do arquivo já integrado (md5 do caminho).
+    - name: Orca | fonte de atualização (GitHub)
+      ansible.builtin.command:
+        argv:
+          - flatpak
+          - run
+          - it.mijorus.gearlever
+          - --set-update-source
+          - "{{ target_home }}/AppImages/orca.appimage"
+          - --manager
+          - GithubUpdater
+          - repo=stablyai/orca
+          - repo_filename=orca-linux.AppImage
+          - allow_prereleases=false
+      when: desktop_orca_integrar is not skipped
+      changed_when: true
+
+    - name: Orca | remover temporário do download
+      ansible.builtin.file:
+        path: "{{ target_home }}/.cache/orca-instalacao"
+        state: absent
+
+# ---------------- Ajustes de shell para o terminal do Orca ----------------
+# O terminal do Orca injeta CLAUDE_CODE_PLUGIN_DIRS; o unset vale porque o wrapper do Orca carrega
+# o ~/.bashrc depois. O OSC no fim do PS1 deixa o título da aba só com o nome da pasta (\W).
+# O bloco precisa ficar no fim do arquivo, depois de qualquer reescrita do PS1.
+- name: Orca | ajustes no ~/.bashrc
+  ansible.builtin.blockinfile:
+    path: "{{ target_home }}/.bashrc"
+    marker: "# {mark} orca-ajustes"
+    insertafter: EOF
+    block: |
+      unset CLAUDE_CODE_PLUGIN_DIRS
+      PS1="$PS1"'\[\e]0;\W\a\]'
+  become: true
+  become_user: "{{ target_user }}"
+
+# ---------------- Claude Code: sem título de terminal próprio ----------------
+# Define env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = "1" em ~/.claude/settings.json, preservando as
+# demais chaves. Sem `command`/`jq`: o preview (--check --diff) funciona. O conteúdo do arquivo
+# fica fora do log e do diff (no_log, diff: false).
+- name: Claude Code | checar settings.json
+  ansible.builtin.stat:
+    path: "{{ target_home }}/.claude/settings.json"
+  register: desktop_claude_settings_stat
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Claude Code | diretório ~/.claude (instalação limpa)
+  ansible.builtin.file:
+    path: "{{ target_home }}/.claude"
+    state: directory
+    mode: "0700"
+  when: not desktop_claude_settings_stat.stat.exists
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Claude Code | ler settings.json
+  ansible.builtin.slurp:
+    src: "{{ target_home }}/.claude/settings.json"
+  register: desktop_claude_settings_raw
+  when: desktop_claude_settings_stat.stat.exists
+  no_log: true
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Claude Code | interpretar settings.json
+  ansible.builtin.set_fact:
+    desktop_claude_settings: >-
+      {{ (desktop_claude_settings_raw.content | b64decode | from_json)
+      if desktop_claude_settings_stat.stat.exists else {} }}
+  no_log: true
+
+- name: Claude Code | desligar título de terminal
+  ansible.builtin.copy:
+    dest: "{{ target_home }}/.claude/settings.json"
+    content: "{{ desktop_claude_settings
+      | combine({'env': {'CLAUDE_CODE_DISABLE_TERMINAL_TITLE': '1'}}, recursive=True)
+      | to_nice_json(indent=2, sort_keys=False, ensure_ascii=False) }}\n"
+    mode: "{{ desktop_claude_settings_stat.stat.exists | ternary(omit, '0600') }}"
+    backup: true
+  when: (desktop_claude_settings.get('env') or {}).get('CLAUDE_CODE_DISABLE_TERMINAL_TITLE', '') != '1'
+  diff: false
+  no_log: true
+  become: true
+  become_user: "{{ target_user }}"

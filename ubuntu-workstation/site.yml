@@ -57,6 +57,7 @@
     - role: deb_direct
     - role: flatpak
     - role: desktop
+      tags: desktop
     - role: binaries
     - role: nvidia
     - role: kiro_ide
