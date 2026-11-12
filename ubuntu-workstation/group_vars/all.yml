@@ -13,6 +13,12 @@ flyway_version: "11.8.2"
 vibe_version: "3.2.2"
 winboat_version: "0.9.2"
 
+# Orca (AppImage de releases do GitHub, asset orca-linux.AppImage). Versão e sha256
+# valem só no primeiro download; depois quem atualiza é o Gear Lever.
+# sha256 = digest publicado pelo GitHub no asset; validado em 2026-11-12.
+orca_version: "1.4.257"
+orca_sha256: "9141a1c75744bfa7724c253e6664525947a154937354ea9be9590526524a874d"
+
 # Ferramentas Go instaladas com `go install` no ~/go/bin do usuário (versões do Fedora em 2026-10-23).
 go_tools:
   - { name: golangci-lint, pkg: "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", version: "v2.12.2" }
