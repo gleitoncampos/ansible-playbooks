@@ -161,8 +161,10 @@
   become_user: "{{ target_user }}"
 
 # ---------------- uv / uvx ----------------
-# Binários do tarball oficial (sha256 pinado) em ~/.local/bin. Não rebaixa nem sobrescreve:
-# só instala se o uv ausente ou de versão diferente da pinada.
+# Binários do tarball oficial (sha256 pinado) em ~/.local/bin. Instala se o uv estiver ausente
+# ou em versão diferente da pinada; versão diferente (maior ou menor) é sobrescrita pela pinada.
+# Em --check, baixar, extrair e instalar são puladas: o get_url baixaria para um diretório
+# que o check não criou (falha) e extrair/instalar dependem do tarball.
 - name: Uv | checar versão instalada
   ansible.builtin.command: "{{ target_home }}/.local/bin/uv --version"
   register: binaries_uv_check
@@ -189,6 +191,7 @@
         dest: "{{ target_home }}/.cache/uv-instalacao/uv.tar.gz"
         checksum: "sha256:{{ uv_sha256 }}"
         mode: "0644"
+      when: not ansible_check_mode
 
     - name: Uv | extrair
       ansible.builtin.unarchive:
@@ -196,6 +199,7 @@
         dest: "{{ target_home }}/.cache/uv-instalacao"
         remote_src: true
         extra_opts: [--strip-components=1]
+      when: not ansible_check_mode
 
     - name: Uv | diretório ~/.local/bin
       ansible.builtin.file:
@@ -210,6 +214,7 @@
         remote_src: true
         mode: "0755"
       loop: [uv, uvx]
+      when: not ansible_check_mode
 
     - name: Uv | remover temporário do download
       ansible.builtin.file:
