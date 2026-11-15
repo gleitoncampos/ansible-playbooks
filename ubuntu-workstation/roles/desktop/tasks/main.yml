@@ -53,6 +53,24 @@
   become: true
   become_user: "{{ target_user }}"
 
+# ---------------- Sandbox de apps Electron (AppArmor) ----------------
+# O Ubuntu 24.04+ restringe user namespaces não privilegiados por AppArmor
+# (kernel.apparmor_restrict_unprivileged_userns=1), e o sandbox do Chromium/Electron
+# (Orca, VS Code, Discord) cria user namespace. Estas duas chaves vieram do ISO do
+# Kubuntu (20-apparmor.conf, "Disables AppArmor user namespace restrictions on the live
+# ISO") e a estação roda com elas. NÃO está provado que os apps quebram sem elas: se
+# quiser testar, remova o arquivo e abra cada app. Num arquivo já existente com estes
+# valores o módulo não reescreve nada (comentários ficam).
+- name: Electron | liberar user namespaces não privilegiados no AppArmor
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/20-apparmor.conf
+    reload: true
+  loop:
+    - { name: kernel.apparmor_restrict_unprivileged_userns, value: "0" }
+    - { name: kernel.apparmor_restrict_unprivileged_unconfined, value: "1" }
+
 # ---------------- Orca (AppImage, integrado e gerenciado pelo Gear Lever) ----------------
 # Instala só se ausente: versão e sha256 de group_vars valem apenas no primeiro download;
 # depois o Gear Lever atualiza. O --integrate COPIA para ~/AppImages/orca.appimage (nome vem do
