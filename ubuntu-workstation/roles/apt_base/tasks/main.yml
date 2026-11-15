@@ -16,15 +16,10 @@
     group: root
     mode: "0755"
 
-# force=false (padrão): só baixa se o arquivo não existe; chave existente não é regravada.
-- name: Baixar chaves públicas dos repositórios
-  ansible.builtin.get_url:
-    url: "{{ item.url }}"
-    dest: "/etc/apt/keyrings/{{ item.file }}"
-    owner: root
-    group: root
-    mode: "0644"
-  loop: &apt_base_keys
+- name: Verificar chaves públicas já presentes
+  ansible.builtin.stat:
+    path: "/etc/apt/keyrings/{{ item.file }}"
+  loop:
     - file: packages.mozilla.org.asc
       url: https://packages.mozilla.org/apt/repo-signing-key.gpg
       fingerprint: 35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3
@@ -36,29 +31,51 @@
       fingerprint: 5301FA4FD93244FBC6F6149982BB6851C64F6880
   loop_control:
     label: "{{ item.file }}"
+  register: apt_base_key_stat
 
+# Só baixa se o arquivo não existe: chave existente nunca é regravada. O get_url
+# sozinho não garante isso (o keyserver devolve conteúdo diferente para a mesma
+# chave e o arquivo foi regravado). Em --check o get_url faz HEAD e o keyserver
+# responde 405, então o download é pulado nesse modo.
+- name: Baixar chaves públicas ausentes
+  ansible.builtin.get_url:
+    url: "{{ item.item.url }}"
+    dest: "/etc/apt/keyrings/{{ item.item.file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ apt_base_key_stat.results }}"
+  loop_control:
+    label: "{{ item.item.file }}"
+  when: not item.stat.exists and not ansible_check_mode
+
+# Leitura pura: roda também em --check (senão o assert abaixo falha sem stdout).
+# Chave baixada nesta run não existia no stat: só pula em --check, onde o download é pulado.
 - name: Ler fingerprint das chaves
   ansible.builtin.command:
     argv:
       - gpg
       - --show-keys
       - --with-colons
-      - "/etc/apt/keyrings/{{ item.file }}"
-  loop: *apt_base_keys
+      - "/etc/apt/keyrings/{{ item.item.file }}"
+  loop: "{{ apt_base_key_stat.results }}"
   loop_control:
-    label: "{{ item.file }}"
+    label: "{{ item.item.file }}"
   register: apt_base_key_info
   changed_when: false
+  check_mode: false
+  when: item.stat.exists or not ansible_check_mode
 
 - name: Validar fingerprint das chaves
   ansible.builtin.assert:
     that:
-      - ("fpr:::::::::" ~ item.item.fingerprint ~ ":") in item.stdout_lines
-    fail_msg: "A chave {{ item.item.file }} não corresponde ao fingerprint esperado."
+      - ("fpr:::::::::" ~ item.item.item.fingerprint ~ ":") in item.stdout_lines
+    fail_msg: "A chave {{ item.item.item.file }} não corresponde ao fingerprint esperado."
     quiet: true
   loop: "{{ apt_base_key_info.results }}"
   loop_control:
-    label: "{{ item.item.file }}"
+    label: "{{ item.item.item.file }}"
+  when: not item.skipped | default(false)
 
 - name: Mozilla | repositório
   ansible.builtin.deb822_repository:
