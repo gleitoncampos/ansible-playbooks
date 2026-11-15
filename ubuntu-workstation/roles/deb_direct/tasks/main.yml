@@ -25,10 +25,21 @@
   when: "'install ok installed' not in deb_direct_discord_check.stdout"
   changed_when: true
 
+# Vibe: o app se atualiza sozinho, e o módulo apt (deb:) com versão fixa falha com
+# "A later version is already installed". Instala só se ainda não estiver instalado
+# (atualização depois: o próprio Vibe).
+- name: Vibe | checar instalação
+  ansible.builtin.command: dpkg-query -W -f='${Status}' vibe
+  register: deb_direct_vibe_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
 - name: Instalar Vibe (transcrição, .deb da release)
   ansible.builtin.apt:
     deb: "https://github.com/thewh1teagle/vibe/releases/download/v{{ vibe_version }}/vibe_{{ vibe_version }}_amd64.deb"
     state: present
+  when: "'install ok installed' not in deb_direct_vibe_check.stdout"
 
 # WinBoat sobe o Windows em container Docker e abre os apps por RDP: precisa do FreeRDP 3.
 - name: WinBoat | FreeRDP 3 (cliente RDP usado pelo WinBoat)

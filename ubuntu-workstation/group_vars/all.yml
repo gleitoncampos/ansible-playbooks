@@ -10,7 +10,7 @@ go_version: "1.26.10"
 flyway_version: "11.8.2"
 
 # .deb de releases do GitHub (mesma versão do Fedora em 2026-10-23).
-vibe_version: "3.2.2"
+vibe_version: "3.3.0"
 winboat_version: "0.9.2"
 
 # Orca (AppImage de releases do GitHub, asset orca-linux.AppImage). Versão e sha256
