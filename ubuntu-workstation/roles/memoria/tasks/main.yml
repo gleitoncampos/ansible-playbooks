@@ -54,6 +54,60 @@
     enabled: true
     state: started
 
+# Containers em slice próprio, monitorado pelo systemd-oomd. Com cgroup driver
+# systemd cada container vira docker-<id>.scope dentro do slice dado em
+# cgroup-parent (padrão: system.slice, fora do docker.service); então a gestão por
+# pressão tem de estar no slice dos containers, não no serviço do dockerd. O oomd
+# só mata cgroup descendente de quem tem kill: o docker.slice nunca é candidato, e
+# cada docker-<id>.scope (folha) é. Limite de 80% (acima dos 50% do user@, para os
+# containers caírem depois da sessão gráfica) e janela de 20s fixada aqui
+# (ManagedOOMMemoryPressureDurationSec= existe desde o systemd 257, o 26.04 traz o
+# 259), em vez de herdar os 30s do oomd.conf. Só quando o docker-ce já instalou a
+# unit (apt_base roda antes).
+- name: Verificar se o docker.service está instalado
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/docker.service
+  register: memoria_docker_unit
+
+- name: Isolar containers do Docker em docker.slice
+  when: memoria_docker_unit.stat.exists
+  block:
+    # Unit file em /etc, não drop-in: o man systemd.slice não garante slice sem
+    # arquivo, e o arquivo deixa o slice visível em systemctl cat e verify.
+    - name: Criar docker.slice com kill por pressão de memória
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/docker.slice
+        content: |
+          [Unit]
+          Description=Containers do Docker (monitorados pelo systemd-oomd)
+
+          [Slice]
+          ManagedOOMMemoryPressure=kill
+          ManagedOOMMemoryPressureLimit=80%
+          ManagedOOMMemoryPressureDurationSec=20s
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Recarregar systemd
+
+    # A role é dona do arquivo inteiro: o copy sobrescreve qualquer outra chave que
+    # alguém ponha no daemon.json (hoje /etc/docker/ vem vazio). Se surgir chave
+    # de outra fonte, trocar por merge de JSON. Docker lê o daemon.json só ao
+    # iniciar, então mudança dispara restart. ATENÇÃO: o restart derruba os
+    # containers em execução (sem live-restore) e o cgroup-parent vale por
+    # container na hora do start: os já criados só migram ao serem reiniciados.
+    - name: Apontar o Docker para o docker.slice
+      ansible.builtin.copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {
+            "cgroup-parent": "docker.slice"
+          }
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reiniciar docker
+
 # /tmp em subvolume btrfs @tmp (topo, irmão de @ e @swap, fora dos snapshots do @)
 # no lugar do tmpfs: tmpfs conta contra a RAM e o /tmp com build/download grande
 # pressionava a estação. Tudo abaixo só vale após reboot: o /tmp tmpfs em uso não é

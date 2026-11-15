@@ -6,7 +6,9 @@
 - name: Recarregar systemd para o zram-generator
   ansible.builtin.systemd_service:
     daemon_reload: true
-  listen: Ativar zram
+  listen:
+    - Ativar zram
+    - Recarregar systemd
 
 - name: Recriar device zram
   ansible.builtin.systemd_service:
@@ -28,4 +30,12 @@
 - name: Reiniciar systemd-oomd
   ansible.builtin.systemd_service:
     name: systemd-oomd.service
+    state: restarted
+
+# Último de todos, depois do daemon-reload: o docker.slice já precisa estar carregado
+# quando o dockerd criar o primeiro scope nele. Só dispara quando o daemon.json muda.
+# ATENÇÃO: derruba os containers em execução (live-restore desligado por padrão).
+- name: Reiniciar docker
+  ansible.builtin.systemd_service:
+    name: docker.service
     state: restarted
