@@ -148,3 +148,70 @@
   become_user: "{{ target_user }}"
   when: not binaries_claude_bin.stat.exists
   changed_when: true
+
+# ---------------- pyenv ----------------
+# Só o pyenv (clone git fixado em tag); nenhuma versão de Python é instalada.
+# O init no shell vem do bloco do ~/.bashrc na role desktop.
+- name: Pyenv | clonar em ~/.pyenv (tag pinada)
+  ansible.builtin.git:
+    repo: https://github.com/pyenv/pyenv
+    dest: "{{ target_home }}/.pyenv"
+    version: "{{ pyenv_version }}"
+  become: true
+  become_user: "{{ target_user }}"
+
+# ---------------- uv / uvx ----------------
+# Binários do tarball oficial (sha256 pinado) em ~/.local/bin. Não rebaixa nem sobrescreve:
+# só instala se o uv ausente ou de versão diferente da pinada.
+- name: Uv | checar versão instalada
+  ansible.builtin.command: "{{ target_home }}/.local/bin/uv --version"
+  register: binaries_uv_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Uv | baixar e instalar
+  when: (binaries_uv_check.stdout | default('')).split()[1:2] != [uv_version]
+  become: true
+  become_user: "{{ target_user }}"
+  block:
+    - name: Uv | diretório temporário do download
+      ansible.builtin.file:
+        path: "{{ target_home }}/.cache/uv-instalacao"
+        state: directory
+        mode: "0700"
+
+    - name: Uv | baixar tarball (sha256 pinado)
+      ansible.builtin.get_url:
+        url: "https://github.com/astral-sh/uv/releases/download/{{ uv_version }}/uv-x86_64-unknown-linux-gnu.tar.gz"
+        dest: "{{ target_home }}/.cache/uv-instalacao/uv.tar.gz"
+        checksum: "sha256:{{ uv_sha256 }}"
+        mode: "0644"
+
+    - name: Uv | extrair
+      ansible.builtin.unarchive:
+        src: "{{ target_home }}/.cache/uv-instalacao/uv.tar.gz"
+        dest: "{{ target_home }}/.cache/uv-instalacao"
+        remote_src: true
+        extra_opts: [--strip-components=1]
+
+    - name: Uv | diretório ~/.local/bin
+      ansible.builtin.file:
+        path: "{{ target_home }}/.local/bin"
+        state: directory
+        mode: "0755"
+
+    - name: Uv | instalar uv e uvx em ~/.local/bin
+      ansible.builtin.copy:
+        src: "{{ target_home }}/.cache/uv-instalacao/{{ item }}"
+        dest: "{{ target_home }}/.local/bin/{{ item }}"
+        remote_src: true
+        mode: "0755"
+      loop: [uv, uvx]
+
+    - name: Uv | remover temporário do download
+      ansible.builtin.file:
+        path: "{{ target_home }}/.cache/uv-instalacao"
+        state: absent

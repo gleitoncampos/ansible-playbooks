@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=vibe
+Comment=vibestartup script
+Exec=/usr/bin/vibe --hidden
+StartupNotify=false
+Terminal=false

@@ -164,6 +164,7 @@
       - cloudflare-warp
       - anydesk
       - mongodb-mongosh
+      - azure-cli
     state: present
 
 - name: Adicionar usuário ao grupo docker
