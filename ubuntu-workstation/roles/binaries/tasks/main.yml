@@ -47,6 +47,14 @@
   register: binaries_go_check
   changed_when: false
   failed_when: false
+  check_mode: false   # leitura pura; em --check o command seria pulado e a versão lida como ausente
+
+# Extrair por cima deixa órfãos da versão antiga; só remove quando a versão difere (ou não há Go).
+- name: Go | remover versão anterior antes de extrair
+  ansible.builtin.file:
+    path: /usr/local/go
+    state: absent
+  when: go_version not in (binaries_go_check.stdout | default(''))
 
 - name: Go | baixar e extrair tarball oficial
   ansible.builtin.unarchive:
