@@ -10,6 +10,12 @@
     update_cache: true
     cache_valid_time: 3600
 
+# O módulo deb822_repository exige python3-debian no alvo; não vem garantido em instalação mínima.
+- name: Instalar python3-debian
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
 - name: Garantir diretório de keyrings
   ansible.builtin.file:
     path: /etc/apt/keyrings
