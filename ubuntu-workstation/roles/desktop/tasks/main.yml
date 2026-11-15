@@ -269,3 +269,51 @@
   no_log: true
   become: true
   become_user: "{{ target_user }}"
+
+# ---------------- Klipper: URL copiada abre no Chromium ----------------
+# Só com Plasma: o Klipper é parte do pacote plasma-workspace (o mesmo que traz o plasmashell),
+# então /usr/bin/plasmashell presente = Klipper presente. Em máquina sem Plasma as tasks não rodam.
+# Só as chaves que diferem do default do Klipper (plasma-workspace 6.6.6, klipper.kcfg):
+#   - URLGrabberEnabled: default false;
+#   - "Number of Actions" e "Number of commands": o Klipper só carrega Action_N e Command_N se estas
+#     contagens existirem (default 0, lidas em urlgrabber.cpp); sem elas a ação inteira é ignorada;
+#   - Action_0 e Command_N: não têm default (são todas custom).
+# Fora de propósito: StripWhiteSpace=true e ReplayActionInHistory=false são o default (e vivem em
+# [Actions], não em [General]); ActionsEnabled e Number não existem no Klipper 6.6.6.
+# Regexp usa `.*`: `\S` quebra o KConfig. Seção Action_0 única (duplicada é erro).
+# ini_file preserva as demais seções do arquivo. O handler recarrega o Klipper em execução.
+- name: Klipper | checar Plasma
+  ansible.builtin.stat:
+    path: /usr/bin/plasmashell
+  register: desktop_plasmashell_stat
+
+- name: Klipper | ação "Abrir URL" no ~/.config/klipperrc
+  community.general.ini_file:
+    path: "{{ target_home }}/.config/klipperrc"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    no_extra_spaces: true
+    mode: "0644"
+  loop:
+    - { section: General, option: URLGrabberEnabled, value: "true" }
+    - { section: General, option: Number of Actions, value: "1" }
+    - { section: Action_0, option: Automatic, value: "true" }
+    - { section: Action_0, option: Description, value: Abrir URL }
+    - { section: Action_0, option: Number of commands, value: "2" }
+    - { section: Action_0, option: Regexp, value: "^https?://.*" }
+    - { section: Action_0/Command_0, option: Commandline, value: "/usr/bin/chromium %s" }
+    - { section: Action_0/Command_0, option: Description, value: Abrir no Chromium }
+    - { section: Action_0/Command_0, option: Enabled, value: "true" }
+    - { section: Action_0/Command_0, option: Icon, value: chromium }
+    - { section: Action_0/Command_0, option: Output, value: "0" }
+    - { section: Action_0/Command_1, option: Commandline, value: "xdg-open %s" }
+    - { section: Action_0/Command_1, option: Description, value: Abrir no navegador padrão (Firefox) }
+    - { section: Action_0/Command_1, option: Enabled, value: "true" }
+    - { section: Action_0/Command_1, option: Output, value: "0" }
+  loop_control:
+    label: "{{ item.section }} {{ item.option }}"
+  when: desktop_plasmashell_stat.stat.exists
+  become: true
+  become_user: "{{ target_user }}"
+  notify: Klipper | recarregar configuração

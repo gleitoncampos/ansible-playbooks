@@ -1,0 +1,28 @@
+---
+# Recarrega o Klipper em execução depois que o ~/.config/klipperrc mudou. Dois handlers no mesmo
+# tópico (listen), na ordem: uid do usuário alvo, depois o reload. Mesmo padrão da role: sem sessão
+# gráfica, D-Bus e XDG_RUNTIME_DIR do usuário vêm explícitos.
+- name: Klipper | uid do usuário alvo
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ target_user }}"
+  listen: Klipper | recarregar configuração
+
+# failed_when: false de propósito: sem sessão do usuário (provisionamento por SSH, boot sem login) ou
+# sem Klipper rodando não há quem recarregar, e o arquivo já está gravado: o Klipper lê no próximo
+# início. Falha de reload não pode derrubar o playbook.
+- name: Klipper | recarregar via D-Bus
+  ansible.builtin.command:
+    argv:
+      - qdbus6
+      - org.kde.klipper
+      - /klipper
+      - org.kde.klipper.klipper.reloadConfig
+  become: true
+  become_user: "{{ target_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][target_user][1] }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ ansible_facts['getent_passwd'][target_user][1] }}/bus"
+  changed_when: false
+  failed_when: false
+  listen: Klipper | recarregar configuração
