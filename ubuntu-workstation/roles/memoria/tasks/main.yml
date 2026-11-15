@@ -45,8 +45,9 @@
     - { name: vm.swappiness, value: "180" }
     - { name: vm.page-cluster, value: "0" }
 
-# O pacote Ubuntu já traz drop-ins que ligam a gestão (ManagedOOMMemoryPressure=kill
-# em user@.service, ManagedOOMSwap=auto em -.slice): só falta o serviço rodando.
+# O pacote Ubuntu já traz drop-ins: ManagedOOMMemoryPressure=kill liga gestão por
+# pressão em user@.service; ManagedOOMSwap=auto (em -.slice) deixa o kill por swap
+# desligado. Só falta o serviço rodando.
 - name: Habilitar e iniciar systemd-oomd
   ansible.builtin.systemd_service:
     name: systemd-oomd.service
