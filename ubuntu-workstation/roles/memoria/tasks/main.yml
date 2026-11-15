@@ -53,3 +53,105 @@
     name: systemd-oomd.service
     enabled: true
     state: started
+
+# /tmp em subvolume btrfs @tmp (topo, irmão de @ e @swap, fora dos snapshots do @)
+# no lugar do tmpfs: tmpfs conta contra a RAM e o /tmp com build/download grande
+# pressionava a estação. Tudo abaixo só vale após reboot: o /tmp tmpfs em uso não é
+# desmontado nem coberto agora (fstab em state=present, nunca mounted).
+- name: Instalar btrfs-progs
+  ansible.builtin.apt:
+    name: btrfs-progs
+    state: present
+
+# UUID do filesystem do / lido em runtime (nada de UUID no repositório). check_mode
+# false: leitura pura, precisa rodar no --check para as tasks seguintes terem valor.
+- name: Ler UUID do filesystem do /
+  ansible.builtin.command: findmnt --noheadings --output UUID --target /
+  register: memoria_root_uuid
+  changed_when: false
+  check_mode: false
+
+# Existência por `subvolume list` (lê o fs inteiro a partir do /, sem montar o topo),
+# para o --check não depender de montar nada.
+- name: Listar subvolumes do filesystem do /
+  ansible.builtin.command: btrfs subvolume list /
+  register: memoria_subvolumes
+  changed_when: false
+  check_mode: false
+
+# subvolid=5 é o topo do fs; o @tmp nasce irmão de @ e @swap. O bloco só roda se o
+# @tmp não existe, e o always desmonta o topo mesmo com falha no meio. Modo 1777 na
+# raiz do subvolume: é ele que o /tmp mostra depois de montado.
+- name: Criar subvolume @tmp
+  when: memoria_subvolumes.stdout is not search('(?m) path @tmp$')
+  block:
+    - name: Criar ponto de montagem temporário do topo btrfs
+      ansible.builtin.file:
+        path: /run/memoria-btrfs-topo
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Montar o topo do btrfs sem registrar no fstab
+      ansible.posix.mount:
+        path: /run/memoria-btrfs-topo
+        src: "UUID={{ memoria_root_uuid.stdout }}"
+        fstype: btrfs
+        opts: subvolid=5
+        state: ephemeral
+
+    - name: Criar o subvolume @tmp
+      ansible.builtin.command:
+        cmd: btrfs subvolume create /run/memoria-btrfs-topo/@tmp
+        creates: /run/memoria-btrfs-topo/@tmp
+
+    - name: Ajustar modo do @tmp para 1777
+      ansible.builtin.file:
+        path: /run/memoria-btrfs-topo/@tmp
+        state: directory
+        owner: root
+        group: root
+        mode: "1777"
+  always:
+    - name: Desmontar o topo do btrfs
+      ansible.posix.mount:
+        path: /run/memoria-btrfs-topo
+        state: unmounted
+
+    - name: Remover ponto de montagem temporário do topo
+      ansible.builtin.file:
+        path: /run/memoria-btrfs-topo
+        state: absent
+
+# Substitui a entrada tmpfs do /tmp (o módulo casa a linha pelo ponto de montagem).
+# Opções fixas, iguais às do / no host: opção de btrfs como autodefrag/discard/
+# space_cache vale para o fs inteiro, e divergir entre montagens do mesmo fs gera
+# aviso ou é ignorado. Derivar do findmnt traria subvolid/subvol/rw, que mudam
+# sem ser configuração. nosuid,nodev são o endurecimento que o /tmp ganha;
+# noexec fica de fora (build e instaladores executam de /tmp).
+# O @tmp precisa existir antes: fstab apontando para subvolume ausente derruba o boot.
+- name: Montar /tmp pelo subvolume @tmp no fstab
+  ansible.posix.mount:
+    path: /tmp
+    src: "UUID={{ memoria_root_uuid.stdout }}"
+    fstype: btrfs
+    opts: "subvol=@tmp,noatime,ssd,discard=async,space_cache=v2,autodefrag,nosuid,nodev"
+    dump: "0"
+    passno: "0"
+    state: present
+
+# O tmpfiles.d do pacote só tem `q /tmp ... 10d`. Aqui, D esvazia o /tmp a cada boot
+# (systemd-tmpfiles-setup roda --create --remove --boot) sem remover o diretório,
+# que é ponto de montagem; os 10d continuam limpando por idade em sessão longa. O
+# arquivo em /etc com o mesmo nome substitui o do pacote inteiro (tmpfiles.d(5)),
+# por isso o /var/tmp é repetido igual ao do pacote.
+- name: Esvaziar /tmp a cada boot via tmpfiles.d
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/tmp.conf
+    content: |
+      D /tmp 1777 root root 10d
+      q /var/tmp 1777 root root 30d
+    owner: root
+    group: root
+    mode: "0644"
