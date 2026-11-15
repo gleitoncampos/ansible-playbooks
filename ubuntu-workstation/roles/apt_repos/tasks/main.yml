@@ -65,6 +65,21 @@
     state: present
 
 # -------------------------------------------------------------------
+# Azure CLI (reutiliza a chave da Microsoft baixada acima)
+# -------------------------------------------------------------------
+
+- name: Azure CLI | repositório
+  ansible.builtin.deb822_repository:
+    name: azure-cli
+    types: [deb]
+    uris: https://packages.microsoft.com/repos/azure-cli
+    signed_by: /etc/apt/keyrings/microsoft.asc
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [main]
+    architectures: [amd64]
+    state: present
+
+# -------------------------------------------------------------------
 # GitHub CLI
 # -------------------------------------------------------------------
 
