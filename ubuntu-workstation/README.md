@@ -49,11 +49,10 @@ Aplicar:
 ansible-playbook site.yml --ask-become-pass
 ```
 
-Rodar só uma parte (ex.: só os repos e apt):
+Rodar só a role `desktop` (a única com tag em `site.yml`):
 
 ```bash
-ansible-playbook site.yml --ask-become-pass --tags apt_repos,apt_base
-# (requer adicionar tags às roles em site.yml se quiser esse filtro)
+ansible-playbook site.yml --ask-become-pass --tags desktop
 ```
 
 ## O que o playbook instala
