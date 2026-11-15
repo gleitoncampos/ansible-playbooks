@@ -64,6 +64,17 @@
     architectures: [amd64]
     state: present
 
+# O postinst do pacote code reescreve vscode.sources (e cria
+# /usr/share/keyrings/microsoft.gpg) a cada install/upgrade, a menos que
+# code/add-microsoft-repo seja false. Este playbook é o único dono do arquivo.
+# Roda antes da role apt_base, que instala o code.
+- name: VS Code | impedir o postinst de reescrever o repositório
+  ansible.builtin.debconf:
+    name: code
+    question: code/add-microsoft-repo
+    vtype: boolean
+    value: "false"
+
 # -------------------------------------------------------------------
 # Azure CLI (reutiliza a chave da Microsoft baixada acima)
 # -------------------------------------------------------------------
