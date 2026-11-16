@@ -94,3 +94,4 @@ ansible-playbook site.yml --ask-become-pass --tags desktop
 3. `aws sso login --sso-session Nuvidio` para configurar perfis.
 4. Validar GPU: `nvidia-smi`.
 5. Validar Docker sem sudo: `docker run hello-world` (após relogin).
+6. Logout/login para o grupo `kvm` valer (Cowork do Claude Desktop).
