@@ -29,6 +29,9 @@
     - file: xtradeb-apps.asc
       url: "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0x5301FA4FD93244FBC6F6149982BB6851C64F6880"
       fingerprint: 5301FA4FD93244FBC6F6149982BB6851C64F6880
+    - file: claude-desktop.asc
+      url: https://downloads.claude.ai/claude-desktop/key.asc
+      fingerprint: 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
   loop_control:
     label: "{{ item.file }}"
   register: apt_base_key_stat
@@ -142,13 +145,27 @@
       Pin: release o=LP-PPA-xtradeb-apps
       Pin-Priority: 700
 
+# O postinst do claude-desktop só grava o próprio .list se nenhum outro arquivo de
+# fonte ativo já apontar para esta URI; este .sources a satisfaz, então fica uma origem só.
+- name: Claude Desktop | repositório
+  ansible.builtin.deb822_repository:
+    name: claude-desktop
+    types: [deb]
+    uris: https://downloads.claude.ai/claude-desktop/apt/stable
+    signed_by: /etc/apt/keyrings/claude-desktop.asc
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    state: present
+  register: apt_base_repo_claude_desktop
+
 # Só atualiza se algum repositório acima mudou (senão quebraria a idempotência).
 - name: Atualizar cache após repositórios do apt_base
   ansible.builtin.apt:
     update_cache: true
   when: >-
     apt_base_repo_mozilla.changed or apt_base_repo_qbittorrent.changed
-    or apt_base_repo_xtradeb.changed
+    or apt_base_repo_xtradeb.changed or apt_base_repo_claude_desktop.changed
 
 - name: Instalar pacotes base do apt
   ansible.builtin.apt:
@@ -201,3 +218,31 @@
     name: tailscaled
     enabled: true
     state: started
+
+# ---- Claude Desktop (repositório acima) + Cowork ----
+# Task própria, fora de apt_base_packages e da lista de terceiros: o Cowork (VM com
+# QEMU) é recomendado pelo pacote e vem do Ubuntu, então os quatro formam uma unidade.
+# Nomeados aqui para não depender do Install-Recommends do apt. Sem gnome-keyring: no
+# KDE o segredo fica no KWallet.
+- name: Instalar Claude Desktop e dependências do Cowork
+  ansible.builtin.apt:
+    name:
+      - claude-desktop
+      - qemu-system-x86
+      - ovmf
+      - virtiofsd
+    state: present
+
+# Vale só após novo login (README, Pós-instalação).
+- name: Adicionar usuário ao grupo kvm (Cowork)
+  ansible.builtin.user:
+    name: "{{ target_user }}"
+    groups: kvm
+    append: true
+
+# Cowork usa vsock entre host e VM. Carrega agora e persiste em /etc/modules-load.d.
+- name: Carregar vhost_vsock (Cowork)
+  community.general.modprobe:
+    name: vhost_vsock
+    state: present
+    persistent: present
