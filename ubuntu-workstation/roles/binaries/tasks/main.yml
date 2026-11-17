@@ -50,18 +50,20 @@
   check_mode: false   # leitura pura; em --check o command seria pulado e a versão lida como ausente
 
 # Extrair por cima deixa órfãos da versão antiga; só remove quando a versão difere (ou não há Go).
+# Compara o token da versão ("go version go1.26.10 linux/amd64" -> "go1.26.10"), não substring:
+# "1.26.1" casaria com "go1.26.10".
 - name: Go | remover versão anterior antes de extrair
   ansible.builtin.file:
     path: /usr/local/go
     state: absent
-  when: go_version not in (binaries_go_check.stdout | default(''))
+  when: (binaries_go_check.stdout | default('')).split()[2:3] != ['go' ~ go_version]
 
 - name: Go | baixar e extrair tarball oficial
   ansible.builtin.unarchive:
     src: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
     dest: /usr/local
     remote_src: true
-  when: go_version not in (binaries_go_check.stdout | default(''))
+  when: (binaries_go_check.stdout | default('')).split()[2:3] != ['go' ~ go_version]
 
 - name: Go | PATH no profile
   ansible.builtin.copy:
