@@ -47,12 +47,45 @@
 
 # O pacote Ubuntu já traz drop-ins: ManagedOOMMemoryPressure=kill liga gestão por
 # pressão em user@.service; ManagedOOMSwap=auto (em -.slice) deixa o kill por swap
-# desligado. Só falta o serviço rodando.
+# desligado. Só falta o serviço rodando. Mas só isso não basta para o user@.service
+# continuar monitorado após o login do Plasma: ver a task do -.slice de usuário
+# abaixo (systemd#43174).
 - name: Habilitar e iniciar systemd-oomd
   ansible.builtin.systemd_service:
     name: systemd-oomd.service
     enabled: true
     state: started
+
+# Bug upstream systemd/systemd#43174 (systemd 259, Ubuntu 26.04): o startplasma-wayland
+# faz `systemctl --user daemon-reload` em todo login. O -.slice do gerenciador de
+# usuário tem o mesmo cgroup do user@UID.service e ManagedOOMMemoryPressure=auto;
+# no reload ele avisa o oomd com `auto`, e o oomd apaga a entrada `kill` que o PID1
+# tinha registrado para esse path, deixando o user@UID fora do `oomctl`. O drop-in
+# dá ao -.slice de usuário a mesma política do user@.service. O limite é IGUAL ao do
+# drop-in do pacote (50%, sem DurationSec) porque os dois avisos chegam ao oomd para
+# o mesmo path e vale o último: valores diferentes fariam a política oscilar.
+# Sem handler: o gerenciador de usuário só lê o drop-in no próximo
+# `systemctl --user daemon-reload`, que o próprio login do Plasma faz (um reload
+# manual na sessão também ativa). O root não recarrega o gerenciador de usuário
+# de forma limpa, então a ativação é no próximo login.
+- name: Criar diretório de drop-ins do -.slice de usuário
+  ansible.builtin.file:
+    path: /etc/systemd/user/-.slice.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Dar ao -.slice de usuário a mesma política de pressão do user@.service
+  ansible.builtin.copy:
+    dest: /etc/systemd/user/-.slice.d/10-oomd-user-root-slice.conf
+    content: |
+      [Slice]
+      ManagedOOMMemoryPressure=kill
+      ManagedOOMMemoryPressureLimit=50%
+    owner: root
+    group: root
+    mode: "0644"
 
 # Containers em slice próprio, monitorado pelo systemd-oomd. Com cgroup driver
 # systemd cada container vira docker-<id>.scope dentro do slice dado em
